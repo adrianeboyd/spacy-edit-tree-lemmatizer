@@ -1,0 +1,7 @@
+numpy
+spacy>=3.1.2,<3.2.0
+
+# Development dependencies
+cython>=0.25,<3.0
+hypothesis>=3.27.0,<7.0.0
+pytest
