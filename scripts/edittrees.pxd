@@ -1,8 +1,10 @@
 from libc.stdint cimport uint32_t, uint64_t
 from spacy.typedefs cimport attr_t, hash_t, len_t
-from preshed.maps cimport PreshMap
 from spacy.strings cimport StringStore
+from libcpp.unordered_map cimport unordered_map
 from libcpp.vector cimport vector
+
+cdef uint32_t NULL_NODE_ID
 
 cdef struct InteriorNodeC:
     len_t prefix_len
@@ -57,10 +59,10 @@ cdef inline lcs_is_empty(lcs: LCS):
 
 cdef class EditTrees:
     cdef vector[EditTreeNodeC] nodes
-    cdef PreshMap map
+    cdef unordered_map[hash_t, uint32_t] map
     cdef StringStore strings
 
-    cpdef str apply(self, uint64_t tree, str form)
-    cdef _apply(self, uint64_t node, str form_part, list lemma_pieces)
-    cdef uint64_t build(self, str form, str lemma)
+    cpdef str apply(self, uint32_t tree, str form)
+    cdef _apply(self, uint32_t node, str form_part, list lemma_pieces)
+    cdef uint32_t build(self, str form, str lemma)
     cpdef tree_str(self, uint32_t node)
