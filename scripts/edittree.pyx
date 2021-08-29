@@ -1,11 +1,10 @@
 # cython: infer_types=True, profile=True, binding=True
 
-from cymem.cymem cimport Pool
 from libc.string cimport memset
+import numpy as np
 from spacy.vocab import Vocab
 
-from edittree cimport EditTreeNodeC
-import numpy as np
+from edittree cimport EditTreeNodeC, edit_tree_node_new_interior, edit_tree_node_new_replacement
 
 cdef struct LCS:
     int source_begin
@@ -56,16 +55,12 @@ cdef LCS find_lcs(source: str, target: str):
     return lcs
 
 cdef class EditTree:
-    cdef Pool mem;
     cdef Vocab vocab;
     cdef EditTreeNodeC *root;
 
-    def __init__(self, mem: Pool, vocab: Vocab, form: str, lemma: str):
-        # Fix: do not use Pool, does not make sense to keep/store trees that
-        # are not kept, because they are already known.
-        self.mem = mem
+    def __init__(self, vocab: Vocab, form: str, lemma: str):
         self.vocab = vocab
-        self.root = EditTree.build(mem, vocab, form, lemma)
+        self.root = EditTree.build(vocab, form, lemma)
 
     cpdef str apply(self, form: str):
         lemma_pieces = []
@@ -95,31 +90,23 @@ cdef class EditTree:
             self.apply_(node.node.interior_node.right, form_part[suffix_start:], lemma_pieces)
 
     @staticmethod
-    cdef EditTreeNodeC *build(pool: Pool, vocab: Vocab, form: str, lemma: str):
+    cdef EditTreeNodeC *build(vocab: Vocab, form: str, lemma: str):
+        cdef EditTreeNodeC *node
+
         lcs = find_lcs(form, lemma)
 
         if lcs_is_empty(lcs):
-            node = <EditTreeNodeC*>pool.alloc(1, sizeof(EditTreeNodeC))
-            node.node.replacement_node.replacee = vocab.strings.add(form)
-            node.node.replacement_node.replacement = vocab.strings.add(lemma)
-            return node
+            return edit_tree_node_new_replacement(vocab.strings.add(form), vocab.strings.add(lemma))
 
         cdef EditTreeNodeC *left = NULL
         if lcs.source_begin != 0 or lcs.target_begin != 0:
-            left = EditTree.build(pool, vocab, form[:lcs.source_begin], lemma[:lcs.target_begin])
+            left = EditTree.build(vocab, form[:lcs.source_begin], lemma[:lcs.target_begin])
 
         cdef EditTreeNodeC *right = NULL
         if lcs.source_end != len(form) or lcs.target_end != len(lemma):
-            right = EditTree.build(pool, vocab, form[lcs.source_end:], lemma[lcs.target_end:])
+            right = EditTree.build(vocab, form[lcs.source_end:], lemma[lcs.target_end:])
 
-        node = <EditTreeNodeC*>pool.alloc(1, sizeof(EditTreeNodeC))
-        node.is_interior_node = True
-        node.node.interior_node.prefix_len = lcs.source_begin
-        node.node.interior_node.suffix_len = len(form) - lcs.source_end
-        node.node.interior_node.left = left
-        node.node.interior_node.right = right
-
-        return node
+        return edit_tree_node_new_interior(lcs.source_begin, len(form) - lcs.source_end, left, right)
 
     def __str__(self):
         return self._str(self.root)

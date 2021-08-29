@@ -8,9 +8,8 @@ from scripts.edittree import EditTree
 
 @given(st.text(), st.text())
 def test_roundtrip(form, lemma):
-    pool = Pool()
     vocab = Vocab()
-    tree = EditTree(pool, vocab, form, lemma)
+    tree = EditTree(vocab, form, lemma)
     print(f"form: {form}, lemma: {lemma}, tree: {tree}")
     assert tree.apply(form) == lemma
 
@@ -18,8 +17,7 @@ def test_roundtrip(form, lemma):
 @given(st.text(alphabet="ab"), st.text(alphabet="ab"))
 def test_roundtrip_small_alphabet(form, lemma):
     # Test with small alphabets to have more overlap.
-    pool = Pool()
     vocab = Vocab()
-    tree = EditTree(pool, vocab, form, lemma)
+    tree = EditTree(vocab, form, lemma)
     print(f"form: '{form}', lemma: '{lemma}', tree: {tree}")
     assert tree.apply(form) == lemma
