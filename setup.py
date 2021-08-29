@@ -8,7 +8,6 @@ include_dirs = [
 
 
 MOD_NAMES = [
-    "scripts.edittree",
     "scripts.edittrees",
     "scripts.edittree_lemmatizer_pipe",
 ]
