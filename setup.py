@@ -9,7 +9,6 @@ include_dirs = [
 
 MOD_NAMES = [
     "scripts.edittrees",
-    "scripts.edittree_lemmatizer_pipe",
 ]
 
 ext_modules = []
