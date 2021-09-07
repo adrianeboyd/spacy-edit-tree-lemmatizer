@@ -5,16 +5,16 @@ from libc.stdint cimport uint32_t
 from spacy.typedefs cimport attr_t, hash_t, len_t
 from libc.stdint cimport UINT32_MAX
 from libc.string cimport memset
-from spacy.strings cimport StringStore
-from libcpp.vector cimport vector
-import numpy as np
-from edittrees cimport lcs_is_empty
 from libcpp.pair cimport pair
+from libcpp.vector cimport vector
+from spacy.strings cimport StringStore
+from edittrees cimport lcs_is_empty
 from cython.operator cimport dereference as deref
 
 from edittrees cimport EditTrees, EditTreeNodeC
 
 NULL_NODE_ID = UINT32_MAX
+
 
 cdef LCS find_lcs(source: str, target: str):
     """
@@ -29,29 +29,32 @@ cdef LCS find_lcs(source: str, target: str):
     cdef Py_ssize_t target_len = len(target)
     cdef int longest_align = 0;
     cdef int lcs_source_start = 0, lcs_source_end = 0
+    cdef int source_idx, target_idx
     cdef LCS lcs
 
     memset(&lcs, 0, sizeof(lcs))
 
-    cdef int[:, :] align_lens = np.zeros((source_len, target_len), dtype=np.intc)
+    cdef vector[size_t] prev_aligns = vector[size_t](target_len);
+    cdef vector[size_t] cur_aligns = vector[size_t](target_len);
 
     for source_idx in range(source_len):
         for target_idx in range(target_len):
             if source[source_idx] == target[target_idx]:
                 if source_idx == 0 or target_idx == 0:
-                    align_lens[source_idx, target_idx] = 1
+                    cur_aligns[target_idx] = 1
                 else:
-                    align_lens[source_idx, target_idx] = align_lens[source_idx - 1, target_idx - 1] + 1
+                    cur_aligns[target_idx] = prev_aligns[target_idx - 1] + 1
 
-                if align_lens[source_idx, target_idx] > longest_align:
-                    longest_align = align_lens[source_idx, target_idx]
+                if cur_aligns[target_idx] > longest_align:
+                    longest_align = cur_aligns[target_idx]
                     lcs.source_begin = source_idx - longest_align + 1
                     lcs.source_end =  source_idx + 1
                     lcs.target_begin = target_idx - longest_align + 1
                     lcs.target_end =  target_idx + 1
             else:
                 # No match, we start with a zero-length LCS.
-                align_lens[source_idx, target_idx] = 0
+                cur_aligns[target_idx] = 0
+        swap(prev_aligns, cur_aligns)
 
     return lcs
 
@@ -69,7 +72,7 @@ cdef class EditTrees:
         cdef EditTreeNodeC node
         cdef uint32_t node_id, left, right
 
-        lcs = find_lcs(form, lemma)
+        cdef LCS lcs = find_lcs(form, lemma)
 
         if lcs_is_empty(lcs):
             node = edit_tree_node_new_replacement(self.strings.add(form), self.strings.add(lemma))

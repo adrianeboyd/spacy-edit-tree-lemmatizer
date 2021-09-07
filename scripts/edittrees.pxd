@@ -4,6 +4,9 @@ from spacy.strings cimport StringStore
 from libcpp.unordered_map cimport unordered_map
 from libcpp.vector cimport vector
 
+cdef extern from "<algorithm>" namespace "std" nogil:
+    void swap[T](T& a, T& b) except + # Only available in Cython 3.
+
 cdef uint32_t NULL_NODE_ID
 
 cdef struct InteriorNodeC:
