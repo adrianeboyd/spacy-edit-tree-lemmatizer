@@ -16,7 +16,7 @@ from edittrees cimport EditTrees, EditTreeNodeC
 NULL_NODE_ID = UINT32_MAX
 
 
-cdef LCS find_lcs(source: str, target: str):
+cdef LCS find_lcs(unicode source, unicode target):
     """
     Find the longest common subsequence (LCS) between two strings. If there are
     multiple LCSes, only one of them is returned.
@@ -27,19 +27,19 @@ cdef LCS find_lcs(source: str, target: str):
     """
     cdef Py_ssize_t source_len = len(source)
     cdef Py_ssize_t target_len = len(target)
-    cdef int longest_align = 0;
-    cdef int lcs_source_start = 0, lcs_source_end = 0
+    cdef size_t longest_align = 0;
     cdef int source_idx, target_idx
     cdef LCS lcs
+    cdef Py_UCS4 source_cp, target_cp
 
     memset(&lcs, 0, sizeof(lcs))
 
     cdef vector[size_t] prev_aligns = vector[size_t](target_len);
     cdef vector[size_t] cur_aligns = vector[size_t](target_len);
 
-    for source_idx in range(source_len):
-        for target_idx in range(target_len):
-            if source[source_idx] == target[target_idx]:
+    for (source_idx, source_cp) in enumerate(source):
+        for (target_idx, target_cp) in enumerate(target):
+            if source_cp == target_cp:
                 if source_idx == 0 or target_idx == 0:
                     cur_aligns[target_idx] = 1
                 else:
@@ -65,10 +65,10 @@ cdef class EditTrees:
         self.nodes = vector[EditTreeNodeC]()
         self.strings = StringStore()
 
-    def add(self, form: str, lemma: str) -> int:
+    def add(self, form: unicode, lemma: unicode) -> int:
         return self.build(form, lemma)
 
-    cdef uint32_t build(self, str form, str lemma):
+    cdef uint32_t build(self, unicode form, unicode lemma):
         cdef EditTreeNodeC node
         cdef uint32_t node_id, left, right
 
@@ -88,7 +88,7 @@ cdef class EditTrees:
             node = edit_tree_node_new_interior(lcs.source_begin, len(form) - lcs.source_end, left, right)
 
         cdef hash_t hash = edit_tree_node_hash(node)
-        iter = self.map.find(hash)
+        cdef unordered_map[hash_t, uint32_t].iterator iter = self.map.find(hash)
         if iter != self.map.end():
             return deref(iter).second
 
@@ -98,12 +98,12 @@ cdef class EditTrees:
 
         return node_id
 
-    cpdef str apply(self, uint32_t tree, str form):
+    cpdef unicode apply(self, uint32_t tree, unicode form):
         lemma_pieces = []
         self._apply(tree, form, lemma_pieces)
         return "".join(lemma_pieces)
 
-    cdef _apply(self, uint32_t tree, str form_part, list lemma_pieces):
+    cdef _apply(self, uint32_t tree, unicode form_part, list lemma_pieces):
         cdef EditTreeNodeC node = self.nodes[tree]
         cdef InteriorNodeC interior
         cdef int suffix_start
