@@ -14,12 +14,22 @@ directories: ["scripts", "configs", "assets", "data", "training"]
 workflows:
   all:
     - train_cpu
+    - grain_gpu
 
 commands:
   - name: "train_cpu"
     help: "Train the lemmatization model on the CPU and evaluate on the dev corpus."
     script:
       - "python -m spacy train ${vars.tok2vec_config} --output training --paths.train ${vars.train_file} --paths.dev ${vars.dev_file}  -c ./scripts/custom_functions.py"
+    deps:
+      - ${vars.train_file}
+      - ${vars.dev_file}
+    outputs:
+      - ${vars.trained_model}
+  - name: "train_gpu"
+    help: "Train the lemmatization model on the GPU and evaluate on the dev corpus."
+    script:
+      - "python -m spacy train ${vars.tok2vec_config} --output training --paths.train ${vars.train_file} --paths.dev ${vars.dev_file}  -c ./scripts/custom_functions.py --gpu-id 0"
     deps:
       - ${vars.train_file}
       - ${vars.dev_file}

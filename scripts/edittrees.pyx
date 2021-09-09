@@ -147,6 +147,9 @@ cdef class EditTrees:
     def __reduce__(self):
         return unpickle_edit_trees, (self.nodes, self.strings), None, None
 
+    def size(self):
+        return self.nodes.size()
+
 def unpickle_edit_trees(nodes, strings):
     cdef EditTreeNodeC c_node
     cdef uint32_t node_id
