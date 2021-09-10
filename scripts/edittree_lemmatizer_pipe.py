@@ -1,9 +1,10 @@
 from typing import Callable, Iterable, Optional, List, Tuple, Dict, Any
-
+from itertools import islice
 import numpy
 from spacy import Language, Vocab, Errors
 from spacy.pipeline import TrainablePipe
 from spacy.scorer import Scorer
+from spacy.tokens import token
 from spacy.tokens.doc import Doc
 from spacy.training import Example, validate_examples
 from thinc.loss import SequenceCategoricalCrossentropy
@@ -42,19 +43,15 @@ class EditTreeLemmatizer(TrainablePipe):
         truths = []
         for eg in examples:
             ex_truths = []
-            # eg_truths = [tag if tag is not "" else None for tag in eg.get_aligned("TAG", as_string=True)]
             for (predicted, gold_lemma) in zip(eg.predicted, eg.get_aligned("LEMMA", as_string=True)):
                 if gold_lemma is None:
-                    gold_lemma = predicted.text # ???
-
-                tree_id = self.trees.add(predicted.text, gold_lemma)
-                # XXX: 0 is not actually the null tree
-                label = self.tree2label.get(tree_id, 0)
+                    label = 0
+                else:
+                    tree_id = self.trees.add(predicted.text, gold_lemma)
+                    label = self.tree2label.get(tree_id, 0)
                 ex_truths.append(label)
-            truths.append(ex_truths)
 
-        #truths = self.model.ops.asarray(truths)
-        #print(self.trees.size())
+            truths.append(ex_truths)
 
         d_scores, loss = loss_func(scores, truths)
         if self.model.ops.xp.isnan(loss):
@@ -122,16 +119,30 @@ class EditTreeLemmatizer(TrainablePipe):
         doc_sample = []
         label_sample = []
 
+        # Ensure that the first tree just rewrites a form to itself.
+        self._tree2label("", "")
+
+        # Construct the edit trees for all the examples.
         for example in get_examples():
+            for token in example.reference:
+                self._tree2label(token.text, token.lemma_)
+
+        # Sample for the model.
+        for example in islice(get_examples(), 10):
             doc_sample.append(example.x)
-            for token in example.y:
-                labels = []
-                tree_id = self.trees.add(token.text, token.lemma_)
-                if not tree_id in self.tree2label:
-                    self.tree2label[tree_id] = len(self.labels)
-                    self.labels.append(tree_id)
-                label = self.tree2label[tree_id]
-                labels.append(label)
-                label_sample.append(self.model.ops.asarray(labels, dtype="float32"))
+            gold_labels = []
+            for token in example.reference:
+                gold_label = self._tree2label(token.text, token.lemma_)
+                gold_labels.append([1.0 if label == gold_label else 0.0 for label in self.labels])
+
+            label_sample.append(self.model.ops.asarray(gold_labels, dtype="float32"))
+
 
         self.model.initialize(X=doc_sample, Y=label_sample)
+
+    def _tree2label(self, form, lemma):
+        tree_id = self.trees.add(form, lemma)
+        if not tree_id in self.tree2label:
+            self.tree2label[tree_id] = len(self.labels)
+            self.labels.append(tree_id)
+        return self.tree2label[tree_id]
