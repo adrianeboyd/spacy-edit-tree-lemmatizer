@@ -14,7 +14,7 @@ directories: ["scripts", "configs", "assets", "data", "training"]
 workflows:
   all:
     - train_cpu
-    - grain_gpu
+    - train_gpu
 
 commands:
   - name: "train_cpu"
