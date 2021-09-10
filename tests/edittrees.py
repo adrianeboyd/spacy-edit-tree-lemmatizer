@@ -1,6 +1,7 @@
 from hypothesis import given
 import hypothesis.strategies as st
 import pickle
+import srsly
 
 from scripts.edittrees import EditTrees
 
@@ -20,15 +21,11 @@ def test_pickle_roundtrip():
     pickled = pickle.dumps(trees)
     unpickled = pickle.loads(pickled)
 
-    # The pickled unpickled representation should be the same as the
-    # pickled representation.
-    assert pickle.dumps(unpickled) == pickled
+    # Verify that the nodes did not change.
+    assert trees.size() == unpickled.size()
+    for i in range(trees.size()):
+        assert trees.tree_str(i) == unpickled.tree_str(i)
 
-    # The hash -> tree mapping is reconstructed during unpickling. This
-    # was successful if re-adding existing trees does not result in new
-    # tree identifiers
-    assert trees.add("deelt", "delen") == deelt_id
-    assert trees.add("gedeeld", "delen") == gedeeld_id
 
 @given(st.text(), st.text())
 def test_roundtrip(form, lemma):
