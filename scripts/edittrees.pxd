@@ -57,7 +57,7 @@ cdef struct LCS:
     int target_begin
     int target_end
 
-cdef inline lcs_is_empty(lcs: LCS):
+cdef inline bint lcs_is_empty(LCS lcs):
     return lcs.source_begin == 0 and lcs.source_end == 0 and lcs.target_begin == 0 and lcs.target_end == 0
 
 cdef class EditTrees:

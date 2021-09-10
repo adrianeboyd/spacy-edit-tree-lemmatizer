@@ -3,9 +3,13 @@ from Cython.Build import cythonize
 import numpy
 
 include_dirs = [
-    numpy.get_include(),
 ]
 
+COMPILER_DIRECTIVES = {
+    "language_level": -3,
+    "embedsignature": True,
+    "annotation_typing": False,
+}
 
 MOD_NAMES = [
     "scripts.edittrees",
@@ -23,6 +27,6 @@ for name in MOD_NAMES:
     )
     ext_modules.append(ext)
 
-ext_modules = cythonize(ext_modules)
+ext_modules = cythonize(ext_modules, compiler_directives=COMPILER_DIRECTIVES)
 
 setup(ext_modules=ext_modules)
