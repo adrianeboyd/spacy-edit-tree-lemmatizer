@@ -18,7 +18,7 @@ from edittrees cimport EditTrees, EditTreeNodeC
 NULL_NODE_ID = UINT32_MAX
 
 
-cdef LCS find_lcs(unicode source, unicode target):
+cdef LCS find_lcs(str source, str target):
     """
     Find the longest common subsequence (LCS) between two strings. If there are
     multiple LCSes, only one of them is returned.
@@ -67,10 +67,10 @@ cdef class EditTrees:
         self.nodes = vector[EditTreeNodeC]()
         self.strings = strings
 
-    def add(self, form: unicode, lemma: unicode) -> int:
+    def add(self, form: str, lemma: str) -> int:
         return self.build(form, lemma)
 
-    cdef uint32_t build(self, unicode form, unicode lemma):
+    cdef uint32_t build(self, str form, str lemma):
         cdef EditTreeNodeC node
         cdef uint32_t node_id, left, right
 
@@ -100,12 +100,12 @@ cdef class EditTrees:
 
         return node_id
 
-    cpdef unicode apply(self, uint32_t tree, unicode form):
+    cpdef str apply(self, uint32_t tree, str form):
         lemma_pieces = []
         self._apply(tree, form, lemma_pieces)
         return "".join(lemma_pieces)
 
-    cdef _apply(self, uint32_t tree, unicode form_part, list lemma_pieces):
+    cdef _apply(self, uint32_t tree, str form_part, list lemma_pieces):
         cdef EditTreeNodeC node = self.nodes[tree]
         cdef InteriorNodeC interior
         cdef int suffix_start

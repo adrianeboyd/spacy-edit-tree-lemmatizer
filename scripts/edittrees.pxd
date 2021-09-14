@@ -65,7 +65,7 @@ cdef class EditTrees:
     cdef unordered_map[hash_t, uint32_t] map
     cdef StringStore strings
 
-    cpdef unicode apply(self, uint32_t tree, unicode form)
-    cdef _apply(self, uint32_t node, unicode form_part, list lemma_pieces)
-    cdef uint32_t build(self, unicode form, unicode lemma)
+    cpdef str apply(self, uint32_t tree, str form)
+    cdef _apply(self, uint32_t node, str form_part, list lemma_pieces)
+    cdef uint32_t build(self, str form, str lemma)
     cpdef tree_str(self, uint32_t node)
