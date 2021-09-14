@@ -146,9 +146,6 @@ cdef class EditTrees:
 
         return f"(r '{self.strings[replacement.replacee]}' '{self.strings[replacement.replacement]}')"
 
-    def __reduce__(self):
-        return unpickle_edit_trees, (self.nodes, self.strings), None, None
-
     def from_bytes(self, bytes_data: bytes, * ) -> "EditTrees":
         def deserialize_nodes(node_dicts):
             cdef EditTreeNodeC c_node
@@ -159,6 +156,8 @@ cdef class EditTrees:
         deserializers = {}
         deserializers["nodes"] = lambda n: deserialize_nodes(n)
         spacy.util.from_bytes(bytes_data, deserializers, [])
+
+        self._rebuild_node_map()
 
         return self
 
@@ -174,6 +173,7 @@ cdef class EditTrees:
 
         serializers = {}
         serializers["nodes"] = lambda: node_dicts
+
         return spacy.util.to_bytes(serializers, [])
 
 
@@ -194,24 +194,14 @@ cdef class EditTrees:
     def size(self):
         return self.nodes.size()
 
-def unpickle_edit_trees(nodes, strings):
-    cdef EditTreeNodeC c_node
-    cdef uint32_t node_id
-    cdef hash_t node_hash
+    def _rebuild_node_map(self):
+        cdef EditTreeNodeC c_node
+        cdef uint32_t node_id
+        cdef hash_t node_hash
 
-    trees = EditTrees()
+        self.map.clear()
 
-    trees.strings = strings
-
-    for node in nodes:
-        if node['is_interior_node']:
-            del node['inner']['replacement_node']
-        else:
-            del node['inner']['interior_node']
-        c_node = node
-        node_id = trees.nodes.size()
-        trees.nodes.push_back(c_node)
-        node_hash = edit_tree_node_hash(c_node)
-        trees.map.insert(pair[hash_t, uint32_t](node_hash, node_id))
-
-    return trees
+        for node_id in range(self.nodes.size()):
+            c_node = self.nodes[node_id]
+            node_hash = edit_tree_node_hash(c_node)
+            self.map.insert(pair[hash_t, uint32_t](node_hash, node_id))

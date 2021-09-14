@@ -18,22 +18,6 @@ def test_dutch():
     assert trees.tree_str(tree) == "(i 2 3 (r 'ge' '') (i 0 2 (r '' 'l') (r 'ld' 'n')))"
 
 
-@pytest.mark.skip(msg="Removing pickling?")
-def test_pickle_roundtrip():
-    strings = StringStore()
-    trees = EditTrees(strings)
-    deelt_id = trees.add("deelt", "delen")
-    gedeeld_id = trees.add("gedeeld", "delen")
-
-    pickled = pickle.dumps(trees)
-    unpickled = pickle.loads(pickled)
-
-    # Verify that the nodes did not change.
-    assert trees.size() == unpickled.size()
-    for i in range(trees.size()):
-        assert trees.tree_str(i) == unpickled.tree_str(i)
-
-
 def test_from_to_bytes():
     strings = StringStore()
     trees = EditTrees(strings)
@@ -49,6 +33,11 @@ def test_from_to_bytes():
     assert trees.size() == trees2.size()
     for i in range(trees.size()):
         assert trees.tree_str(i) == trees2.tree_str(i)
+
+    # Reinserting the same trees should not add new nodes.
+    trees2.add("deelt", "delen")
+    trees2.add("gedeeld", "delen")
+    assert trees.size() == trees2.size()
 
 
 def test_from_to_disk():
@@ -67,6 +56,11 @@ def test_from_to_disk():
     assert trees.size() == trees2.size()
     for i in range(trees.size()):
         assert trees.tree_str(i) == trees2.tree_str(i)
+
+    # Reinserting the same trees should not add new nodes.
+    trees2.add("deelt", "delen")
+    trees2.add("gedeeld", "delen")
+    assert trees.size() == trees2.size()
 
 
 @given(st.text(), st.text())
