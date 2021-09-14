@@ -1,19 +1,19 @@
 # cython: infer_types=True, binding=True
+from cython.operator cimport dereference as deref
+from edittrees cimport lcs_is_empty
 from pathlib import Path
-from typing import Union
-import spacy.util
-from spacy.strings import StringStore
 from libc.stdint cimport uint32_t
-from spacy.typedefs cimport attr_t, hash_t, len_t
 from libc.stdint cimport UINT32_MAX
 from libc.string cimport memset
 from libcpp.pair cimport pair
 from libcpp.vector cimport vector
-from spacy.strings cimport StringStore
-from edittrees cimport lcs_is_empty
-from cython.operator cimport dereference as deref
+import spacy.util
+from spacy.strings import StringStore
+from spacy.typedefs cimport hash_t
+from typing import Union
 
 from edittrees cimport EditTrees, EditTreeNodeC
+
 
 NULL_NODE_ID = UINT32_MAX
 

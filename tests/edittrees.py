@@ -1,11 +1,9 @@
 from hypothesis import given
 import hypothesis.strategies as st
-import pytest
-import pickle
-
-from scripts.edittrees import EditTrees
 from spacy.strings import StringStore
 from spacy.util import make_tempdir
+
+from scripts.edittrees import EditTrees
 
 
 def test_dutch():
