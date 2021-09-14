@@ -102,7 +102,10 @@ cdef class EditTrees:
 
     cpdef str apply(self, uint32_t tree, str form):
         lemma_pieces = []
-        self._apply(tree, form, lemma_pieces)
+        try:
+            self._apply(tree, form, lemma_pieces)
+        except ValueError:
+            return None
         return "".join(lemma_pieces)
 
     cdef _apply(self, uint32_t tree, str form_part, list lemma_pieces):
@@ -122,7 +125,10 @@ cdef class EditTrees:
             if interior.right != NULL_NODE_ID:
                 self._apply(interior.right, form_part[suffix_start:], lemma_pieces)
         else:
-            lemma_pieces.append(self.strings[node.inner.replacement_node.replacement])
+            if form_part == self.strings[node.inner.replacement_node.replacee]:
+                lemma_pieces.append(self.strings[node.inner.replacement_node.replacement])
+            else:
+                raise ValueError("Edit tree cannot be applied to form")
 
     cpdef tree_str(self, uint32_t tree):
         cdef EditTreeNodeC node = self.nodes[tree]

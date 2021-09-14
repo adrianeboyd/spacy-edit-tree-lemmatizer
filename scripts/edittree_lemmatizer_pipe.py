@@ -87,7 +87,12 @@ class EditTreeLemmatizer(TrainablePipe):
             for j, tree_id in enumerate(doc_lemma_ids):
                 if doc[j].lemma_ == "":
                     node_id = self.labels[tree_id]
-                    doc[j].lemma_ = self.trees.apply(node_id, doc[j].text)
+                    lemma = self.trees.apply(node_id, doc[j].text)
+                    if lemma is None:
+                        # Back-off
+                        doc[j].lemma_ = doc[j].text
+                    else:
+                        doc[j].lemma_ = self.trees.apply(node_id, doc[j].text)
 
     def _scores2guesses(self, scores):
         guesses = []
