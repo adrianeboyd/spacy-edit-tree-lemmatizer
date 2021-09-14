@@ -1,5 +1,7 @@
 # cython: infer_types=True, binding=True
-
+from pathlib import Path
+from typing import Union
+import spacy.util
 from spacy.strings import StringStore
 from libc.stdint cimport uint32_t
 from spacy.typedefs cimport attr_t, hash_t, len_t
@@ -61,9 +63,9 @@ cdef LCS find_lcs(unicode source, unicode target):
 
 
 cdef class EditTrees:
-    def __init__(self):
+    def __init__(self, strings: StringStore):
         self.nodes = vector[EditTreeNodeC]()
-        self.strings = StringStore()
+        self.strings = strings
 
     def add(self, form: unicode, lemma: unicode) -> int:
         return self.build(form, lemma)
@@ -146,6 +148,48 @@ cdef class EditTrees:
 
     def __reduce__(self):
         return unpickle_edit_trees, (self.nodes, self.strings), None, None
+
+    def from_bytes(self, bytes_data: bytes, * ) -> "EditTrees":
+        def deserialize_nodes(node_dicts):
+            cdef EditTreeNodeC c_node
+            for node_dict in node_dicts:
+                c_node = node_dict
+                self.nodes.push_back(c_node)
+
+        deserializers = {}
+        deserializers["nodes"] = lambda n: deserialize_nodes(n)
+        spacy.util.from_bytes(bytes_data, deserializers, [])
+
+        return self
+
+    def to_bytes(self, **kwargs) -> bytes:
+        node_dicts = []
+        for node in self.nodes:
+            node = dict(node)
+            if node['is_interior_node']:
+                del node['inner']['replacement_node']
+            else:
+                del node['inner']['interior_node']
+            node_dicts.append(node)
+
+        serializers = {}
+        serializers["nodes"] = lambda: node_dicts
+        return spacy.util.to_bytes(serializers, [])
+
+
+    def to_disk(self, path: Union[str, Path], **kwargs) -> "EditTrees":
+        path = spacy.util.ensure_path(path)
+        with path.open("wb") as file_:
+            file_.write(self.to_bytes())
+
+    def from_disk(self, path: Union[str, Path], **kwargs ) -> "EditTrees":
+        path = spacy.util.ensure_path(path)
+        if path.exists():
+            with path.open("rb") as file_:
+                data = file_.read()
+            return self.from_bytes(data)
+
+        return self
 
     def size(self):
         return self.nodes.size()

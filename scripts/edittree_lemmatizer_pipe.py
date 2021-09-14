@@ -1,12 +1,13 @@
 from typing import Callable, Iterable, Optional, List, Tuple, Dict, Any
 from itertools import islice
 import numpy
+import spacy
 from spacy import Language, Vocab, Errors
 from spacy.pipeline import TrainablePipe
 from spacy.scorer import Scorer
-from spacy.tokens import token
 from spacy.tokens.doc import Doc
 from spacy.training import Example, validate_examples
+import srsly
 from thinc.loss import SequenceCategoricalCrossentropy
 from thinc.model import Model
 
@@ -19,9 +20,7 @@ from .edittrees import EditTrees
     requires=[],
     default_score_weights={"lemma_acc": 1.0},
 )
-def make_edit_tree_lemmatizer(
-        nlp: Language, name: str, model: Model
-):
+def make_edit_tree_lemmatizer(nlp: Language, name: str, model: Model):
     """Construct a RelationExtractor component."""
     return EditTreeLemmatizer(nlp.vocab, model, name)
 
@@ -31,7 +30,7 @@ class EditTreeLemmatizer(TrainablePipe):
         self.vocab = vocab
         self.model = model
         self.name = name
-        self.trees = EditTrees()
+        self.trees = EditTrees(vocab.strings)
         self.tree2label = dict()
 
         self.cfg = {"labels": []}
@@ -43,7 +42,9 @@ class EditTreeLemmatizer(TrainablePipe):
         truths = []
         for eg in examples:
             ex_truths = []
-            for (predicted, gold_lemma) in zip(eg.predicted, eg.get_aligned("LEMMA", as_string=True)):
+            for (predicted, gold_lemma) in zip(
+                eg.predicted, eg.get_aligned("LEMMA", as_string=True)
+            ):
                 if gold_lemma is None:
                     label = 0
                 else:
@@ -84,7 +85,7 @@ class EditTreeLemmatizer(TrainablePipe):
             if hasattr(doc_lemma_ids, "get"):
                 doc_lemma_ids = doc_lemma_ids.get()
             for j, tree_id in enumerate(doc_lemma_ids):
-                if doc[j].lemma_ == '':
+                if doc[j].lemma_ == "":
                     node_id = self.labels[tree_id]
                     doc[j].lemma_ = self.trees.apply(node_id, doc[j].text)
 
@@ -96,7 +97,6 @@ class EditTreeLemmatizer(TrainablePipe):
                 doc_guesses = doc_guesses.get()
             guesses.append(doc_guesses)
         return guesses
-
 
     @property
     def labels(self) -> Tuple[str]:
@@ -114,8 +114,13 @@ class EditTreeLemmatizer(TrainablePipe):
         validate_examples(examples, "EditTreeLemmatizer.score")
         return Scorer.score_token_attr(examples, "lemma", **kwargs)
 
-
-    def initialize(self, get_examples: Callable[[], Iterable[Example]], *, nlp: Language = None, labels: Optional[List[str]] = None):
+    def initialize(
+        self,
+        get_examples: Callable[[], Iterable[Example]],
+        *,
+        nlp: Language = None,
+        labels: Optional[List[str]] = None
+    ):
         doc_sample = []
         label_sample = []
 
@@ -133,12 +138,41 @@ class EditTreeLemmatizer(TrainablePipe):
             gold_labels = []
             for token in example.reference:
                 gold_label = self._tree2label(token.text, token.lemma_)
-                gold_labels.append([1.0 if label == gold_label else 0.0 for label in self.labels])
+                gold_labels.append(
+                    [1.0 if label == gold_label else 0.0 for label in self.labels]
+                )
 
             label_sample.append(self.model.ops.asarray(gold_labels, dtype="float32"))
 
-
         self.model.initialize(X=doc_sample, Y=label_sample)
+
+    def to_disk(self, path, exclude=tuple()):
+        path = spacy.util.ensure_path(path)
+        serializers = {
+            "cfg": lambda p: srsly.write_json(p, self.cfg),
+            "model": lambda p: self.model.to_disk(p),
+            "vocab": lambda p: self.vocab.to_disk(p, exclude=exclude),
+            "trees": lambda p: self.trees.to_disk(p),
+        }
+        spacy.util.to_disk(path, serializers, exclude)
+
+    def from_disk(self, path, exclude=tuple()):
+        def load_loadel(p):
+            try:
+                with open(p, "rb") as mfile:
+                    self.model.from_bytes(mfile.read())
+            except AttributeError:
+                raise ValueError(Errors.E149) from None
+
+        deserializers = {
+            "cfg": lambda p: self.cfg.update(srsly.read_json(p)),
+            "model": load_loadel,
+            "vocab": lambda p: self.vocab.from_disk(p, exclude=exclude),
+            "trees": lambda p: self.trees.from_disk(p),
+        }
+
+        spacy.util.from_disk(path, deserializers, exclude)
+        return self
 
     def _tree2label(self, form, lemma):
         tree_id = self.trees.add(form, lemma)
