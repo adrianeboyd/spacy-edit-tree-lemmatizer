@@ -76,3 +76,14 @@ def test_roundtrip_small_alphabet(form, lemma):
     trees = EditTrees(strings)
     tree = trees.add(form, lemma)
     assert trees.apply(tree, form) == lemma
+
+def test_unapplicable_trees():
+    strings = StringStore()
+    trees = EditTrees(strings)
+    tree3 = trees.add("deelt", "delen")
+
+    # Replacement fails.
+    assert trees.apply(tree3, "deeld") == None
+
+    # Suffix + prefix are too large.
+    assert trees.apply(tree3, "de") == None

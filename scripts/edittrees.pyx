@@ -114,7 +114,7 @@ cdef class EditTrees:
             could not be applied to the form.
         """
         if tree_id >= self.trees.size():
-            raise ValueError("Unknown edit tree")
+            raise IndexError("Edit tree identifier out of range")
 
         lemma_pieces = []
         try:
@@ -134,6 +134,10 @@ cdef class EditTrees:
 
         if tree.is_match_node:
             match_node = tree.inner.match_node
+
+            if match_node.prefix_len + match_node.suffix_len >= len(form_part):
+                raise ValueError("Edit tree cannot be applied to form")
+
             suffix_start = len(form_part) - match_node.suffix_len
 
             if match_node.prefix_tree != NULL_TREE_ID:
@@ -158,7 +162,7 @@ cdef class EditTrees:
         """
 
         if tree_id >= self.trees.size():
-            raise ValueError("Unknown edit tree")
+            raise IndexError("Edit tree identifier out of range")
 
         cdef EditTreeC tree = self.trees[tree_id]
         cdef SubstitutionNodeC substitution_node
