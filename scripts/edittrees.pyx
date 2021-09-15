@@ -14,9 +14,7 @@ from typing import Union
 
 from edittrees cimport EditTrees, EditTreeC
 
-
 NULL_TREE_ID = UINT32_MAX
-
 
 cdef LCS find_lcs(str source, str target):
     """
@@ -52,16 +50,15 @@ cdef LCS find_lcs(str source, str target):
                 if cur_aligns[target_idx] > longest_align:
                     longest_align = cur_aligns[target_idx]
                     lcs.source_begin = source_idx - longest_align + 1
-                    lcs.source_end =  source_idx + 1
+                    lcs.source_end = source_idx + 1
                     lcs.target_begin = target_idx - longest_align + 1
-                    lcs.target_end =  target_idx + 1
+                    lcs.target_end = target_idx + 1
             else:
                 # No match, we start with a zero-length alignment.
                 cur_aligns[target_idx] = 0
         swap(prev_aligns, cur_aligns)
 
     return lcs
-
 
 cdef class EditTrees:
     def __init__(self, strings: StringStore):
@@ -157,8 +154,7 @@ cdef class EditTrees:
 
         return f"(i {match_node.prefix_len} {match_node.suffix_len} {left} {right})"
 
-
-    def from_bytes(self, bytes_data: bytes, * ) -> "EditTrees":
+    def from_bytes(self, bytes_data: bytes, *) -> "EditTrees":
         def deserialize_trees(tree_dicts):
             cdef EditTreeC c_tree
             for tree_dict in tree_dicts:
@@ -188,13 +184,12 @@ cdef class EditTrees:
 
         return spacy.util.to_bytes(serializers, [])
 
-
     def to_disk(self, path: Union[str, Path], **kwargs) -> "EditTrees":
         path = spacy.util.ensure_path(path)
         with path.open("wb") as file_:
             file_.write(self.to_bytes())
 
-    def from_disk(self, path: Union[str, Path], **kwargs ) -> "EditTrees":
+    def from_disk(self, path: Union[str, Path], **kwargs) -> "EditTrees":
         path = spacy.util.ensure_path(path)
         if path.exists():
             with path.open("rb") as file_:
