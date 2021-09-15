@@ -77,7 +77,7 @@ cdef class EditTrees:
         cdef LCS lcs = find_lcs(form, lemma)
 
         if lcs_is_empty(lcs):
-            tree = edittree_new_replacement(self.strings.add(form), self.strings.add(lemma))
+            tree = edittree_new_substitution(self.strings.add(form), self.strings.add(lemma))
         else:
             # If we have a non-empty LCS, such as "gooi" in "ge[gooi]d" and "[gooi]en",
             # create edit trees for the prefix pair ("ge"/"") and the suffix pair ("d"/"en").
@@ -89,7 +89,7 @@ cdef class EditTrees:
             if lcs.source_end != len(form) or lcs.target_end != len(lemma):
                 suffix_tree = self.build(form[lcs.source_end:], lemma[lcs.target_end:])
 
-            tree = edittree_new_interior(lcs.source_begin, len(form) - lcs.source_end, prefix_tree, suffix_tree)
+            tree = edittree_new_match(lcs.source_begin, len(form) - lcs.source_end, prefix_tree, suffix_tree)
 
         # If this tree has been constructed before, return its identifier.
         cdef hash_t hash = edittree_hash(tree)
@@ -114,23 +114,23 @@ cdef class EditTrees:
 
     cdef _apply(self, uint32_t tree_id, str form_part, list lemma_pieces):
         cdef EditTreeC tree = self.trees[tree_id]
-        cdef InteriorNodeC interior
+        cdef MatchNodeC match_node
         cdef int suffix_start
 
-        if tree.is_interior_node:
-            interior = tree.inner.interior_node
-            suffix_start = len(form_part) - interior.suffix_len
+        if tree.is_match_node:
+            match_node = tree.inner.match_node
+            suffix_start = len(form_part) - match_node.suffix_len
 
-            if interior.prefix_tree != NULL_TREE_ID:
-                self._apply(interior.prefix_tree, form_part[:interior.prefix_len], lemma_pieces)
+            if match_node.prefix_tree != NULL_TREE_ID:
+                self._apply(match_node.prefix_tree, form_part[:match_node.prefix_len], lemma_pieces)
 
-            lemma_pieces.append(form_part[interior.prefix_len:suffix_start])
+            lemma_pieces.append(form_part[match_node.prefix_len:suffix_start])
 
-            if interior.suffix_tree != NULL_TREE_ID:
-                self._apply(interior.suffix_tree, form_part[suffix_start:], lemma_pieces)
+            if match_node.suffix_tree != NULL_TREE_ID:
+                self._apply(match_node.suffix_tree, form_part[suffix_start:], lemma_pieces)
         else:
-            if form_part == self.strings[tree.inner.replacement_node.replacee]:
-                lemma_pieces.append(self.strings[tree.inner.replacement_node.replacement])
+            if form_part == self.strings[tree.inner.substitution_node.original]:
+                lemma_pieces.append(self.strings[tree.inner.substitution_node.substitute])
             else:
                 raise ValueError("Edit tree cannot be applied to form")
 
@@ -139,23 +139,23 @@ cdef class EditTrees:
             raise ValueError("Unknown edit tree")
 
         cdef EditTreeC tree = self.trees[tree_id]
-        cdef ReplacementNodeC replacement
+        cdef SubstitutionNodeC substitution_node
 
-        if not tree.is_interior_node:
-            replacement = tree.inner.replacement_node
-            return f"(r '{self.strings[replacement.replacee]}' '{self.strings[replacement.replacement]}')"
+        if not tree.is_match_node:
+            substitution_node = tree.inner.substitution_node
+            return f"(r '{self.strings[substitution_node.original]}' '{self.strings[substitution_node.substitute]}')"
 
-        cdef InteriorNodeC interior = tree.inner.interior_node
+        cdef MatchNodeC match_node = tree.inner.match_node
 
         left = "()"
-        if interior.prefix_tree != NULL_TREE_ID:
-            left = self.tree_str(interior.prefix_tree)
+        if match_node.prefix_tree != NULL_TREE_ID:
+            left = self.tree_str(match_node.prefix_tree)
 
         right = "()"
-        if interior.suffix_tree != NULL_TREE_ID:
-            right = self.tree_str(interior.suffix_tree)
+        if match_node.suffix_tree != NULL_TREE_ID:
+            right = self.tree_str(match_node.suffix_tree)
 
-        return f"(i {interior.prefix_len} {interior.suffix_len} {left} {right})"
+        return f"(i {match_node.prefix_len} {match_node.suffix_len} {left} {right})"
 
 
     def from_bytes(self, bytes_data: bytes, * ) -> "EditTrees":
@@ -177,10 +177,10 @@ cdef class EditTrees:
         tree_dicts = []
         for tree in self.trees:
             tree = dict(tree)
-            if tree['is_interior_node']:
-                del tree['inner']['replacement_node']
+            if tree['is_match_node']:
+                del tree['inner']['substitution_node']
             else:
-                del tree['inner']['interior_node']
+                del tree['inner']['match_node']
             tree_dicts.append(tree)
 
         serializers = {}
