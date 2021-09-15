@@ -12,10 +12,10 @@ from spacy.strings import StringStore
 from spacy.typedefs cimport hash_t
 from typing import Union
 
-from edittrees cimport EditTrees, EditTreeNodeC
+from edittrees cimport EditTrees, EditTreeC
 
 
-NULL_NODE_ID = UINT32_MAX
+NULL_TREE_ID = UINT32_MAX
 
 
 cdef LCS find_lcs(str source, str target):
@@ -47,6 +47,8 @@ cdef LCS find_lcs(str source, str target):
                 else:
                     cur_aligns[target_idx] = prev_aligns[target_idx - 1] + 1
 
+                # Check if this is the longest alignment and replace previous
+                # best alignment when this is the case.
                 if cur_aligns[target_idx] > longest_align:
                     longest_align = cur_aligns[target_idx]
                     lcs.source_begin = source_idx - longest_align + 1
@@ -54,131 +56,135 @@ cdef LCS find_lcs(str source, str target):
                     lcs.target_begin = target_idx - longest_align + 1
                     lcs.target_end =  target_idx + 1
             else:
-                # No match, we start with a zero-length LCS.
+                # No match, we start with a zero-length alignment.
                 cur_aligns[target_idx] = 0
         swap(prev_aligns, cur_aligns)
 
     return lcs
 
 
-
 cdef class EditTrees:
     def __init__(self, strings: StringStore):
-        self.nodes = vector[EditTreeNodeC]()
         self.strings = strings
 
     def add(self, form: str, lemma: str) -> int:
         return self.build(form, lemma)
 
     cdef uint32_t build(self, str form, str lemma):
-        cdef EditTreeNodeC node
-        cdef uint32_t node_id, left, right
+        cdef EditTreeC tree
+        cdef uint32_t tree_id, prefix_tree, suffix_tree
 
         cdef LCS lcs = find_lcs(form, lemma)
 
         if lcs_is_empty(lcs):
-            node = edit_tree_node_new_replacement(self.strings.add(form), self.strings.add(lemma))
+            tree = edittree_new_replacement(self.strings.add(form), self.strings.add(lemma))
         else:
-            left = NULL_NODE_ID
+            # If we have a non-empty LCS, such as "gooi" in "ge[gooi]d" and "[gooi]en",
+            # create edit trees for the prefix pair ("ge"/"") and the suffix pair ("d"/"en").
+            prefix_tree = NULL_TREE_ID
             if lcs.source_begin != 0 or lcs.target_begin != 0:
-                left = self.build(form[:lcs.source_begin], lemma[:lcs.target_begin])
+                prefix_tree = self.build(form[:lcs.source_begin], lemma[:lcs.target_begin])
 
-            right = NULL_NODE_ID
+            suffix_tree = NULL_TREE_ID
             if lcs.source_end != len(form) or lcs.target_end != len(lemma):
-                right = self.build(form[lcs.source_end:], lemma[lcs.target_end:])
+                suffix_tree = self.build(form[lcs.source_end:], lemma[lcs.target_end:])
 
-            node = edit_tree_node_new_interior(lcs.source_begin, len(form) - lcs.source_end, left, right)
+            tree = edittree_new_interior(lcs.source_begin, len(form) - lcs.source_end, prefix_tree, suffix_tree)
 
-        cdef hash_t hash = edit_tree_node_hash(node)
+        # If this tree has been constructed before, return its identifier.
+        cdef hash_t hash = edittree_hash(tree)
         cdef unordered_map[hash_t, uint32_t].iterator iter = self.map.find(hash)
         if iter != self.map.end():
             return deref(iter).second
 
-        node_id = self.nodes.size()
-        self.nodes.push_back(node)
-        self.map.insert(pair[hash_t, uint32_t](hash, node_id))
+        #  The tree hasn't been seen before, store it.
+        tree_id = self.trees.size()
+        self.trees.push_back(tree)
+        self.map.insert(pair[hash_t, uint32_t](hash, tree_id))
 
-        return node_id
+        return tree_id
 
-    cpdef str apply(self, uint32_t tree, str form):
+    cpdef str apply(self, uint32_t tree_id, str form):
         lemma_pieces = []
         try:
-            self._apply(tree, form, lemma_pieces)
+            self._apply(tree_id, form, lemma_pieces)
         except ValueError:
             return None
         return "".join(lemma_pieces)
 
-    cdef _apply(self, uint32_t tree, str form_part, list lemma_pieces):
-        cdef EditTreeNodeC node = self.nodes[tree]
+    cdef _apply(self, uint32_t tree_id, str form_part, list lemma_pieces):
+        cdef EditTreeC tree = self.trees[tree_id]
         cdef InteriorNodeC interior
         cdef int suffix_start
 
-        if node.is_interior_node:
-            interior = node.inner.interior_node
+        if tree.is_interior_node:
+            interior = tree.inner.interior_node
             suffix_start = len(form_part) - interior.suffix_len
 
-            if interior.left != NULL_NODE_ID:
-                self._apply(interior.left, form_part[:interior.prefix_len], lemma_pieces)
+            if interior.prefix_tree != NULL_TREE_ID:
+                self._apply(interior.prefix_tree, form_part[:interior.prefix_len], lemma_pieces)
 
             lemma_pieces.append(form_part[interior.prefix_len:suffix_start])
 
-            if interior.right != NULL_NODE_ID:
-                self._apply(interior.right, form_part[suffix_start:], lemma_pieces)
+            if interior.suffix_tree != NULL_TREE_ID:
+                self._apply(interior.suffix_tree, form_part[suffix_start:], lemma_pieces)
         else:
-            if form_part == self.strings[node.inner.replacement_node.replacee]:
-                lemma_pieces.append(self.strings[node.inner.replacement_node.replacement])
+            if form_part == self.strings[tree.inner.replacement_node.replacee]:
+                lemma_pieces.append(self.strings[tree.inner.replacement_node.replacement])
             else:
                 raise ValueError("Edit tree cannot be applied to form")
 
-    cpdef tree_str(self, uint32_t tree):
-        cdef EditTreeNodeC node = self.nodes[tree]
-        cdef InteriorNodeC interior
+    cpdef tree_str(self, uint32_t tree_id):
+        if tree_id >= self.trees.size():
+            raise ValueError("Unknown edit tree")
+
+        cdef EditTreeC tree = self.trees[tree_id]
         cdef ReplacementNodeC replacement
 
-        if node.is_interior_node:
-            interior = node.inner.interior_node
+        if not tree.is_interior_node:
+            replacement = tree.inner.replacement_node
+            return f"(r '{self.strings[replacement.replacee]}' '{self.strings[replacement.replacement]}')"
 
-            left = "()"
-            if interior.left != NULL_NODE_ID:
-                left = self.tree_str(interior.left)
+        cdef InteriorNodeC interior = tree.inner.interior_node
 
-            right = "()"
-            if interior.right != NULL_NODE_ID:
-                right = self.tree_str(interior.right)
+        left = "()"
+        if interior.prefix_tree != NULL_TREE_ID:
+            left = self.tree_str(interior.prefix_tree)
 
-            return f"(i {interior.prefix_len} {interior.suffix_len} {left} {right})"
+        right = "()"
+        if interior.suffix_tree != NULL_TREE_ID:
+            right = self.tree_str(interior.suffix_tree)
 
-        replacement = node.inner.replacement_node
+        return f"(i {interior.prefix_len} {interior.suffix_len} {left} {right})"
 
-        return f"(r '{self.strings[replacement.replacee]}' '{self.strings[replacement.replacement]}')"
 
     def from_bytes(self, bytes_data: bytes, * ) -> "EditTrees":
-        def deserialize_nodes(node_dicts):
-            cdef EditTreeNodeC c_node
-            for node_dict in node_dicts:
-                c_node = node_dict
-                self.nodes.push_back(c_node)
+        def deserialize_trees(tree_dicts):
+            cdef EditTreeC c_tree
+            for tree_dict in tree_dicts:
+                c_tree = tree_dict
+                self.trees.push_back(c_tree)
 
         deserializers = {}
-        deserializers["nodes"] = lambda n: deserialize_nodes(n)
+        deserializers["trees"] = lambda n: deserialize_trees(n)
         spacy.util.from_bytes(bytes_data, deserializers, [])
 
-        self._rebuild_node_map()
+        self._rebuild_tree_map()
 
         return self
 
     def to_bytes(self, **kwargs) -> bytes:
-        node_dicts = []
-        for node in self.nodes:
-            node = dict(node)
-            if node['is_interior_node']:
-                del node['inner']['replacement_node']
+        tree_dicts = []
+        for tree in self.trees:
+            tree = dict(tree)
+            if tree['is_interior_node']:
+                del tree['inner']['replacement_node']
             else:
-                del node['inner']['interior_node']
-            node_dicts.append(node)
+                del tree['inner']['interior_node']
+            tree_dicts.append(tree)
 
         serializers = {}
-        serializers["nodes"] = lambda: node_dicts
+        serializers["trees"] = lambda: tree_dicts
 
         return spacy.util.to_bytes(serializers, [])
 
@@ -198,16 +204,16 @@ cdef class EditTrees:
         return self
 
     def size(self):
-        return self.nodes.size()
+        return self.trees.size()
 
-    def _rebuild_node_map(self):
-        cdef EditTreeNodeC c_node
-        cdef uint32_t node_id
-        cdef hash_t node_hash
+    def _rebuild_tree_map(self):
+        cdef EditTreeC c_tree
+        cdef uint32_t tree_id
+        cdef hash_t tree_hash
 
         self.map.clear()
 
-        for node_id in range(self.nodes.size()):
-            c_node = self.nodes[node_id]
-            node_hash = edit_tree_node_hash(c_node)
-            self.map.insert(pair[hash_t, uint32_t](node_hash, node_id))
+        for tree_id in range(self.trees.size()):
+            c_tree = self.trees[tree_id]
+            tree_hash = edittree_hash(c_tree)
+            self.map.insert(pair[hash_t, uint32_t](tree_hash, tree_id))

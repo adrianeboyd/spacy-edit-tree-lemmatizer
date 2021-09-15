@@ -86,13 +86,13 @@ class EditTreeLemmatizer(TrainablePipe):
                 doc_lemma_ids = doc_lemma_ids.get()
             for j, tree_id in enumerate(doc_lemma_ids):
                 if doc[j].lemma_ == "":
-                    node_id = self.labels[tree_id]
-                    lemma = self.trees.apply(node_id, doc[j].text)
+                    tree_id = self.labels[tree_id]
+                    lemma = self.trees.apply(tree_id, doc[j].text)
                     if lemma is None:
                         # Back-off
                         doc[j].lemma_ = doc[j].text
                     else:
-                        doc[j].lemma_ = self.trees.apply(node_id, doc[j].text)
+                        doc[j].lemma_ = lemma
 
     def _scores2guesses(self, scores):
         guesses = []
@@ -130,19 +130,19 @@ class EditTreeLemmatizer(TrainablePipe):
         label_sample = []
 
         # Ensure that the first tree just rewrites a form to itself.
-        self._tree2label("", "")
+        self._pair2label("", "")
 
         # Construct the edit trees for all the examples.
         for example in get_examples():
             for token in example.reference:
-                self._tree2label(token.text, token.lemma_)
+                self._pair2label(token.text, token.lemma_)
 
         # Sample for the model.
         for example in islice(get_examples(), 10):
             doc_sample.append(example.x)
             gold_labels = []
             for token in example.reference:
-                gold_label = self._tree2label(token.text, token.lemma_)
+                gold_label = self._pair2label(token.text, token.lemma_)
                 gold_labels.append(
                     [1.0 if label == gold_label else 0.0 for label in self.labels]
                 )
@@ -179,9 +179,9 @@ class EditTreeLemmatizer(TrainablePipe):
         spacy.util.from_disk(path, deserializers, exclude)
         return self
 
-    def _tree2label(self, form, lemma):
+    def _pair2label(self, form, lemma):
         tree_id = self.trees.add(form, lemma)
-        if not tree_id in self.tree2label:
+        if tree_id not in self.tree2label:
             self.tree2label[tree_id] = len(self.labels)
             self.labels.append(tree_id)
         return self.tree2label[tree_id]
