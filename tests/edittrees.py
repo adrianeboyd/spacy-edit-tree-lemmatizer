@@ -10,10 +10,10 @@ def test_dutch():
     strings = StringStore()
     trees = EditTrees(strings)
     tree = trees.add("deelt", "delen")
-    assert trees.tree_str(tree) == "(i 0 3 () (i 0 2 (r '' 'l') (r 'lt' 'n')))"
+    assert trees.s_expr(tree) == "(m 0 3 () (m 0 2 (s '' 'l') (s 'lt' 'n')))"
 
     tree = trees.add("gedeeld", "delen")
-    assert trees.tree_str(tree) == "(i 2 3 (r 'ge' '') (i 0 2 (r '' 'l') (r 'ld' 'n')))"
+    assert trees.s_expr(tree) == "(m 2 3 (s 'ge' '') (m 0 2 (s '' 'l') (s 'ld' 'n')))"
 
 
 def test_from_to_bytes():
@@ -28,14 +28,14 @@ def test_from_to_bytes():
     trees2.from_bytes(b)
 
     # Verify that the nodes did not change.
-    assert trees.size() == trees2.size()
-    for i in range(trees.size()):
-        assert trees.tree_str(i) == trees2.tree_str(i)
+    assert len(trees) == len(trees2)
+    for i in range(len(trees)):
+        assert trees.s_expr(i) == trees2.s_expr(i)
 
     # Reinserting the same trees should not add new nodes.
     trees2.add("deelt", "delen")
     trees2.add("gedeeld", "delen")
-    assert trees.size() == trees2.size()
+    assert len(trees) == len(trees2)
 
 
 def test_from_to_disk():
@@ -51,14 +51,14 @@ def test_from_to_disk():
         trees2 = trees2.from_disk(trees_file)
 
     # Verify that the nodes did not change.
-    assert trees.size() == trees2.size()
-    for i in range(trees.size()):
-        assert trees.tree_str(i) == trees2.tree_str(i)
+    assert len(trees) == len(trees2)
+    for i in range(len(trees)):
+        assert trees.s_expr(i) == trees2.s_expr(i)
 
     # Reinserting the same trees should not add new nodes.
     trees2.add("deelt", "delen")
     trees2.add("gedeeld", "delen")
-    assert trees.size() == trees2.size()
+    assert len(trees) == len(trees2)
 
 
 @given(st.text(), st.text())

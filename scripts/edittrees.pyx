@@ -21,9 +21,9 @@ cdef LCS find_lcs(str source, str target):
     Find the longest common subsequence (LCS) between two strings. If there are
     multiple LCSes, only one of them is returned.
 
-    :param source: The first string.
-    :param target: The second string.
-    :return: The spans of the longest common subsequences.
+    source (str): The first string.
+    target (str): The second string.
+    RETURNS (LCS): The spans of the longest common subsequences.
     """
     cdef Py_ssize_t source_len = len(source)
     cdef Py_ssize_t target_len = len(target)
@@ -61,18 +61,22 @@ cdef LCS find_lcs(str source, str target):
     return lcs
 
 cdef class EditTrees:
+    """Container for constructing and storing edit trees."""
     def __init__(self, strings: StringStore):
+        """Create a container for edit trees.
+
+        strings (StringStore): the string store to use."""
         self.strings = strings
 
-    def add(self, form: str, lemma: str) -> int:
-        return self.build(form, lemma)
+    cpdef uint32_t add(self, str form, str lemma):
+        """Add an edit tree that rewrites the given string into the given lemma.
 
-    cdef uint32_t build(self, str form, str lemma):
-        cdef EditTreeC tree
-        cdef uint32_t tree_id, prefix_tree, suffix_tree
-
+        RETURNS (int): identifier of the edit tree in the container.
+        """
         cdef LCS lcs = find_lcs(form, lemma)
 
+        cdef EditTreeC tree
+        cdef uint32_t tree_id, prefix_tree, suffix_tree
         if lcs_is_empty(lcs):
             tree = edittree_new_substitution(self.strings.add(form), self.strings.add(lemma))
         else:
@@ -80,11 +84,11 @@ cdef class EditTrees:
             # create edit trees for the prefix pair ("ge"/"") and the suffix pair ("d"/"en").
             prefix_tree = NULL_TREE_ID
             if lcs.source_begin != 0 or lcs.target_begin != 0:
-                prefix_tree = self.build(form[:lcs.source_begin], lemma[:lcs.target_begin])
+                prefix_tree = self.add(form[:lcs.source_begin], lemma[:lcs.target_begin])
 
             suffix_tree = NULL_TREE_ID
             if lcs.source_end != len(form) or lcs.target_end != len(lemma):
-                suffix_tree = self.build(form[lcs.source_end:], lemma[lcs.target_end:])
+                suffix_tree = self.add(form[lcs.source_end:], lemma[lcs.target_end:])
 
             tree = edittree_new_match(lcs.source_begin, len(form) - lcs.source_end, prefix_tree, suffix_tree)
 
@@ -102,6 +106,16 @@ cdef class EditTrees:
         return tree_id
 
     cpdef str apply(self, uint32_t tree_id, str form):
+        """Apply an edit tree to a form.
+
+        tree_id (uint32_t): the identifier of the edit tree to apply.
+        form (str): the form to apply the edit tree to.
+        RETURNS (str): the transformer form or None if the edit tree
+            could not be applied to the form.
+        """
+        if tree_id >= self.trees.size():
+            raise ValueError("Unknown edit tree")
+
         lemma_pieces = []
         try:
             self._apply(tree_id, form, lemma_pieces)
@@ -110,6 +124,10 @@ cdef class EditTrees:
         return "".join(lemma_pieces)
 
     cdef _apply(self, uint32_t tree_id, str form_part, list lemma_pieces):
+        """Recursively apply an edit tree to a form, adding pieces to
+        the lemma_pieces list."""
+        assert tree_id <= self.trees.size()
+
         cdef EditTreeC tree = self.trees[tree_id]
         cdef MatchNodeC match_node
         cdef int suffix_start
@@ -131,7 +149,14 @@ cdef class EditTrees:
             else:
                 raise ValueError("Edit tree cannot be applied to form")
 
-    cpdef tree_str(self, uint32_t tree_id):
+    cpdef unicode s_expr(self, uint32_t tree_id):
+        """Return the tree as an S-expression. This is primarily useful
+        for debugging.
+
+        tree_id (uint32_t): the identifier of the edit tree.
+        RETURNS (str): the tree as an S-expression.
+        """
+
         if tree_id >= self.trees.size():
             raise ValueError("Unknown edit tree")
 
@@ -140,19 +165,19 @@ cdef class EditTrees:
 
         if not tree.is_match_node:
             substitution_node = tree.inner.substitution_node
-            return f"(r '{self.strings[substitution_node.original]}' '{self.strings[substitution_node.substitute]}')"
+            return f"(s '{self.strings[substitution_node.original]}' '{self.strings[substitution_node.substitute]}')"
 
         cdef MatchNodeC match_node = tree.inner.match_node
 
         left = "()"
         if match_node.prefix_tree != NULL_TREE_ID:
-            left = self.tree_str(match_node.prefix_tree)
+            left = self.s_expr(match_node.prefix_tree)
 
         right = "()"
         if match_node.suffix_tree != NULL_TREE_ID:
-            right = self.tree_str(match_node.suffix_tree)
+            right = self.s_expr(match_node.suffix_tree)
 
-        return f"(i {match_node.prefix_len} {match_node.suffix_len} {left} {right})"
+        return f"(m {match_node.prefix_len} {match_node.suffix_len} {left} {right})"
 
     def from_bytes(self, bytes_data: bytes, *) -> "EditTrees":
         def deserialize_trees(tree_dicts):
@@ -198,10 +223,11 @@ cdef class EditTrees:
 
         return self
 
-    def size(self):
+    def __len__(self):
         return self.trees.size()
 
     def _rebuild_tree_map(self):
+        """Rebuild the tree hash -> tree id mapping"""
         cdef EditTreeC c_tree
         cdef uint32_t tree_id
         cdef hash_t tree_hash

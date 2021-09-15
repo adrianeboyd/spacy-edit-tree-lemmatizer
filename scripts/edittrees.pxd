@@ -49,15 +49,13 @@ cdef inline EditTreeC edittree_new_match(len_t prefix_len, len_t suffix_len, uin
     cdef MatchNodeC match_node = MatchNodeC(prefix_len=prefix_len, suffix_len=suffix_len, prefix_tree=prefix_tree,
                                             suffix_tree=suffix_tree)
     cdef NodeC inner = NodeC(match_node=match_node)
-    cdef EditTreeC node = EditTreeC(is_match_node=True, inner=inner)
-    return node
+    return EditTreeC(is_match_node=True, inner=inner)
 
 cdef inline EditTreeC edittree_new_substitution(attr_t original, attr_t substitute):
     cdef EditTreeC node
-    node.is_match_node = False
-    node.inner.substitution_node.original = original
-    node.inner.substitution_node.substitute = substitute
-    return node
+    cdef SubstitutionNodeC substitution_node = SubstitutionNodeC(original=original, substitute=substitute)
+    cdef NodeC inner = NodeC(substitution_node=substitution_node)
+    return EditTreeC(is_match_node=False, inner=inner)
 
 cdef inline uint64_t edittree_hash(EditTreeC tree):
     cdef MatchNodeC match_node
@@ -84,7 +82,7 @@ cdef class EditTrees:
     cdef unordered_map[hash_t, uint32_t] map
     cdef StringStore strings
 
+    cpdef uint32_t add(self, str form, str lemma)
     cpdef str apply(self, uint32_t tree_id, str form)
     cdef _apply(self, uint32_t tree_id, str form_part, list lemma_pieces)
-    cdef uint32_t build(self, str form, str lemma)
-    cpdef tree_str(self, uint32_t tree_id)
+    cpdef unicode s_expr(self, uint32_t tree_id)
