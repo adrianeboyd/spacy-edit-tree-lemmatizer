@@ -159,7 +159,7 @@ class EditTreeLemmatizer(TrainablePipe):
         spacy.util.to_disk(path, serializers, exclude)
 
     def from_disk(self, path, exclude=tuple()):
-        def load_loadel(p):
+        def load_model(p):
             try:
                 with open(p, "rb") as mfile:
                     self.model.from_bytes(mfile.read())
@@ -168,7 +168,7 @@ class EditTreeLemmatizer(TrainablePipe):
 
         deserializers = {
             "cfg": lambda p: self.cfg.update(srsly.read_json(p)),
-            "model": load_loadel,
+            "model": load_model,
             "vocab": lambda p: self.vocab.from_disk(p, exclude=exclude),
             "trees": lambda p: self.trees.from_disk(p),
         }
