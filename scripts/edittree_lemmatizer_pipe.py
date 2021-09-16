@@ -21,7 +21,7 @@ from .edittrees import EditTrees
     default_score_weights={"lemma_acc": 1.0},
 )
 def make_edit_tree_lemmatizer(nlp: Language, name: str, model: Model):
-    """Construct a RelationExtractor component."""
+    """Construct an EditTreeLemmatizer component."""
     return EditTreeLemmatizer(nlp.vocab, model, name)
 
 
@@ -37,22 +37,22 @@ class EditTreeLemmatizer(TrainablePipe):
 
     def get_loss(self, examples, scores):
         validate_examples(examples, "EditTreeLemmatizer.get_loss")
-        loss_func = SequenceCategoricalCrossentropy(names=self.labels, normalize=False)
+        loss_func = SequenceCategoricalCrossentropy(normalize=False, missing_value=-1)
 
         truths = []
         for eg in examples:
-            ex_truths = []
+            eg_truths = []
             for (predicted, gold_lemma) in zip(
                 eg.predicted, eg.get_aligned("LEMMA", as_string=True)
             ):
                 if gold_lemma is None:
-                    label = 0
+                    label = -1
                 else:
                     tree_id = self.trees.add(predicted.text, gold_lemma)
                     label = self.tree2label.get(tree_id, 0)
-                ex_truths.append(label)
+                eg_truths.append(label)
 
-            truths.append(ex_truths)
+            truths.append(eg_truths)
 
         d_scores, loss = loss_func(scores, truths)
         if self.model.ops.xp.isnan(loss):
@@ -128,9 +128,6 @@ class EditTreeLemmatizer(TrainablePipe):
     ):
         doc_sample = []
         label_sample = []
-
-        # Ensure that the first tree just rewrites a form to itself.
-        self._pair2label("", "")
 
         # Construct the edit trees for all the examples.
         for example in get_examples():
