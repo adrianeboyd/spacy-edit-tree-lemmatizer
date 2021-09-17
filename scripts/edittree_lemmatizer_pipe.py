@@ -18,22 +18,31 @@ from .edittrees import EditTrees
     "edit_tree_lemmatizer",
     assigns=["token.lemma"],
     requires=[],
-    default_config={"backoff": "form"},
+    default_config={"backoff": "form", "overwrite": False},
     default_score_weights={"lemma_acc": 1.0},
 )
-def make_edit_tree_lemmatizer(nlp: Language, name: str, model: Model, backoff: str):
+def make_edit_tree_lemmatizer(
+    nlp: Language, name: str, model: Model, backoff: str, overwrite: bool = False
+):
     """Construct an EditTreeLemmatizer component."""
     return EditTreeLemmatizer(nlp.vocab, model, name, backoff=backoff)
 
 
 class EditTreeLemmatizer(TrainablePipe):
     def __init__(
-        self, vocab: Vocab, model: Model, name: str = "lemmatizer", *, backoff="form"
+        self,
+        vocab: Vocab,
+        model: Model,
+        name: str = "lemmatizer",
+        *,
+        backoff: str = "form",
+        overwrite: bool = False,
     ):
         self.vocab = vocab
         self.model = model
         self.name = name
         self.backoff = backoff
+        self.overwrite = overwrite
 
         self.trees = EditTrees(vocab.strings)
         self.tree2label = dict()
@@ -90,7 +99,7 @@ class EditTreeLemmatizer(TrainablePipe):
             if hasattr(doc_lemma_ids, "get"):
                 doc_lemma_ids = doc_lemma_ids.get()
             for j, tree_id in enumerate(doc_lemma_ids):
-                if doc[j].lemma_ == "":
+                if self.overwrite or doc[j].lemma == 0:
                     tree_id = self.labels[tree_id]
                     lemma = self.trees.apply(tree_id, doc[j].text)
                     if lemma is None:
@@ -130,7 +139,7 @@ class EditTreeLemmatizer(TrainablePipe):
         get_examples: Callable[[], Iterable[Example]],
         *,
         nlp: Language = None,
-        labels: Optional[List[str]] = None
+        labels: Optional[List[str]] = None,
     ):
         doc_sample = []
         label_sample = []
