@@ -18,18 +18,23 @@ from .edittrees import EditTrees
     "edit_tree_lemmatizer",
     assigns=["token.lemma"],
     requires=[],
+    default_config={"backoff": "form"},
     default_score_weights={"lemma_acc": 1.0},
 )
-def make_edit_tree_lemmatizer(nlp: Language, name: str, model: Model):
+def make_edit_tree_lemmatizer(nlp: Language, name: str, model: Model, backoff: str):
     """Construct an EditTreeLemmatizer component."""
-    return EditTreeLemmatizer(nlp.vocab, model, name)
+    return EditTreeLemmatizer(nlp.vocab, model, name, backoff=backoff)
 
 
 class EditTreeLemmatizer(TrainablePipe):
-    def __init__(self, vocab: Vocab, model: Model, name: str = "lemmatizer"):
+    def __init__(
+        self, vocab: Vocab, model: Model, name: str = "lemmatizer", *, backoff="form"
+    ):
         self.vocab = vocab
         self.model = model
         self.name = name
+        self.backoff = backoff
+
         self.trees = EditTrees(vocab.strings)
         self.tree2label = dict()
 
@@ -89,8 +94,9 @@ class EditTreeLemmatizer(TrainablePipe):
                     tree_id = self.labels[tree_id]
                     lemma = self.trees.apply(tree_id, doc[j].text)
                     if lemma is None:
-                        # Back-off
-                        doc[j].lemma_ = doc[j].text
+                        # Move most of the code to predict or __call__
+                        if self.backoff == "form":
+                            doc[j].lemma_ = doc[j].text
                     else:
                         doc[j].lemma_ = lemma
 
