@@ -85,38 +85,49 @@ class EditTreeLemmatizer(TrainablePipe):
         scores = self.model.predict(docs)
         assert len(scores) == len(docs)
 
-        guesses = self._scores2guesses(scores)
+        guesses = self._scores2guesses(docs, scores)
         assert len(guesses) == len(docs)
 
         return guesses
 
-    def set_annotations(self, docs, batch_lemma_ids):
+    def _scores2guesses(self, docs, scores):
+        guesses = []
+        for doc, doc_scores in zip(docs, scores):
+            doc_guesses = doc_scores.argmax(axis=1)
+            if not isinstance(doc_guesses, numpy.ndarray):
+                doc_guesses = doc_guesses.get()
+
+            for i, label in enumerate(doc_guesses):
+                tree_id = self.labels[label]
+
+                if self.trees.apply(tree_id, doc[i].text) is None:
+                    doc_guesses[i] = -1
+                else:
+                    doc_guesses[i] = tree_id
+
+            guesses.append(doc_guesses)
+
+        return guesses
+
+    def set_annotations(self, docs, batch_tree_ids):
         if isinstance(docs, Doc):
             docs = [docs]
 
         for i, doc in enumerate(docs):
-            doc_lemma_ids = batch_lemma_ids[i]
-            if hasattr(doc_lemma_ids, "get"):
-                doc_lemma_ids = doc_lemma_ids.get()
-            for j, tree_id in enumerate(doc_lemma_ids):
+            doc_tree_ids = batch_tree_ids[i]
+            if hasattr(doc_tree_ids, "get"):
+                doc_tree_ids = doc_tree_ids.get()
+            for j, tree_id in enumerate(doc_tree_ids):
                 if self.overwrite or doc[j].lemma == 0:
-                    tree_id = self.labels[tree_id]
-                    lemma = self.trees.apply(tree_id, doc[j].text)
-                    if lemma is None:
-                        # Move most of the code to predict or __call__
+                    # If no applicable tree could be found during prediction,
+                    # the special identifier -1 is used. Otherwise the tree
+                    # is guaranteed to be applicable.
+                    if tree_id == -1:
                         if self.backoff == "form":
                             doc[j].lemma_ = doc[j].text
                     else:
+                        lemma = self.trees.apply(tree_id, doc[j].text)
                         doc[j].lemma_ = lemma
-
-    def _scores2guesses(self, scores):
-        guesses = []
-        for doc_scores in scores:
-            doc_guesses = doc_scores.argmax(axis=1)
-            if not isinstance(doc_guesses, numpy.ndarray):
-                doc_guesses = doc_guesses.get()
-            guesses.append(doc_guesses)
-        return guesses
 
     @property
     def labels(self) -> Tuple[str]:
