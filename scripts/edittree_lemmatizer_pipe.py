@@ -1,6 +1,6 @@
 from typing import Callable, Iterable, Optional, List, Tuple, Dict, Any
 from itertools import islice
-import numpy
+import numpy as np
 import spacy
 from spacy import Language, Vocab, Errors
 from spacy.pipeline import TrainablePipe
@@ -18,14 +18,21 @@ from .edittrees import EditTrees
     "edit_tree_lemmatizer",
     assigns=["token.lemma"],
     requires=[],
-    default_config={"backoff": "form", "overwrite": False},
+    default_config={"backoff": "form", "overwrite": False, "top_k": 1},
     default_score_weights={"lemma_acc": 1.0},
 )
 def make_edit_tree_lemmatizer(
-    nlp: Language, name: str, model: Model, backoff: str, overwrite: bool = False
+    nlp: Language,
+    name: str,
+    model: Model,
+    backoff: str,
+    overwrite: bool = False,
+    top_k: int = 1,
 ):
     """Construct an EditTreeLemmatizer component."""
-    return EditTreeLemmatizer(nlp.vocab, model, name, backoff=backoff)
+    return EditTreeLemmatizer(
+        nlp.vocab, model, name, backoff=backoff, overwrite=overwrite, top_k=top_k
+    )
 
 
 class EditTreeLemmatizer(TrainablePipe):
@@ -37,12 +44,14 @@ class EditTreeLemmatizer(TrainablePipe):
         *,
         backoff: str = "form",
         overwrite: bool = False,
+        top_k: int = 1,
     ):
         self.vocab = vocab
         self.model = model
         self.name = name
         self.backoff = backoff
         self.overwrite = overwrite
+        self.top_k = top_k
 
         self.trees = EditTrees(vocab.strings)
         self.tree2label = dict()
@@ -93,19 +102,26 @@ class EditTreeLemmatizer(TrainablePipe):
     def _scores2guesses(self, docs, scores):
         guesses = []
         for doc, doc_scores in zip(docs, scores):
-            doc_guesses = doc_scores.argmax(axis=1)
-            if not isinstance(doc_guesses, numpy.ndarray):
+            if self.top_k == 1:
+                doc_guesses = doc_scores.argmax(axis=1).reshape(-1, 1)
+            else:
+                doc_guesses = np.argsort(doc_scores)[..., : -self.top_k - 1 : -1]
+
+            if not isinstance(doc_guesses, np.ndarray):
                 doc_guesses = doc_guesses.get()
 
-            for i, label in enumerate(doc_guesses):
-                tree_id = self.labels[label]
+            doc_compat_guesses = []
+            for token, candidates in zip(doc, doc_guesses):
+                tree_id = -1
+                for candidate in candidates:
+                    candidate_tree_id = self.labels[candidate]
 
-                if self.trees.apply(tree_id, doc[i].text) is None:
-                    doc_guesses[i] = -1
-                else:
-                    doc_guesses[i] = tree_id
+                    if self.trees.apply(candidate_tree_id, token.text) is not None:
+                        tree_id = candidate_tree_id
+                        break
+                doc_compat_guesses.append(tree_id)
 
-            guesses.append(doc_guesses)
+            guesses.append(np.array(doc_compat_guesses))
 
         return guesses
 
