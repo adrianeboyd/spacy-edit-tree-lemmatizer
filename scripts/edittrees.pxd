@@ -32,13 +32,13 @@ cdef struct MatchNodeC:
     uint32_t prefix_tree
     uint32_t suffix_tree
 
-cdef struct SubstitutionNodeC:
-    attr_t original
-    attr_t substitute
+cdef struct SubstNodeC:
+    attr_t orig
+    attr_t subst
 
 cdef union NodeC:
     MatchNodeC match_node
-    SubstitutionNodeC substitution_node
+    SubstNodeC subst_node
 
 cdef struct EditTreeC:
     bint is_match_node
@@ -51,22 +51,22 @@ cdef inline EditTreeC edittree_new_match(len_t prefix_len, len_t suffix_len, uin
     cdef NodeC inner = NodeC(match_node=match_node)
     return EditTreeC(is_match_node=True, inner=inner)
 
-cdef inline EditTreeC edittree_new_substitution(attr_t original, attr_t substitute):
+cdef inline EditTreeC edittree_new_subst(attr_t orig, attr_t subst):
     cdef EditTreeC node
-    cdef SubstitutionNodeC substitution_node = SubstitutionNodeC(original=original, substitute=substitute)
-    cdef NodeC inner = NodeC(substitution_node=substitution_node)
+    cdef SubstNodeC subst_node = SubstNodeC(orig=orig, subst=subst)
+    cdef NodeC inner = NodeC(subst_node=subst_node)
     return EditTreeC(is_match_node=False, inner=inner)
 
 cdef inline uint64_t edittree_hash(EditTreeC tree):
     cdef MatchNodeC match_node
-    cdef SubstitutionNodeC substitution_node
+    cdef SubstNodeC subst_node
 
     if tree.is_match_node:
         match_node = tree.inner.match_node
         return hash((match_node.prefix_len, match_node.suffix_len, match_node.prefix_tree, match_node.suffix_tree))
     else:
-        substitution_node = tree.inner.substitution_node
-        return hash((substitution_node.original, substitution_node.substitute))
+        subst_node = tree.inner.subst_node
+        return hash((subst_node.orig, subst_node.subst))
 
 cdef struct LCS:
     int source_begin

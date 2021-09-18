@@ -78,7 +78,7 @@ cdef class EditTrees:
         cdef EditTreeC tree
         cdef uint32_t tree_id, prefix_tree, suffix_tree
         if lcs_is_empty(lcs):
-            tree = edittree_new_substitution(self.strings.add(form), self.strings.add(lemma))
+            tree = edittree_new_subst(self.strings.add(form), self.strings.add(lemma))
         else:
             # If we have a non-empty LCS, such as "gooi" in "ge[gooi]d" and "[gooi]en",
             # create edit trees for the prefix pair ("ge"/"") and the suffix pair ("d"/"en").
@@ -148,8 +148,8 @@ cdef class EditTrees:
             if match_node.suffix_tree != NULL_TREE_ID:
                 self._apply(match_node.suffix_tree, form_part[suffix_start:], lemma_pieces)
         else:
-            if form_part == self.strings[tree.inner.substitution_node.original]:
-                lemma_pieces.append(self.strings[tree.inner.substitution_node.substitute])
+            if form_part == self.strings[tree.inner.subst_node.orig]:
+                lemma_pieces.append(self.strings[tree.inner.subst_node.subst])
             else:
                 raise ValueError("Edit tree cannot be applied to form")
 
@@ -165,11 +165,11 @@ cdef class EditTrees:
             raise IndexError("Edit tree identifier out of range")
 
         cdef EditTreeC tree = self.trees[tree_id]
-        cdef SubstitutionNodeC substitution_node
+        cdef SubstNodeC subst_node
 
         if not tree.is_match_node:
-            substitution_node = tree.inner.substitution_node
-            return f"(s '{self.strings[substitution_node.original]}' '{self.strings[substitution_node.substitute]}')"
+            subst_node = tree.inner.subst_node
+            return f"(s '{self.strings[subst_node.orig]}' '{self.strings[subst_node.subst]}')"
 
         cdef MatchNodeC match_node = tree.inner.match_node
 
@@ -203,7 +203,7 @@ cdef class EditTrees:
         for tree in self.trees:
             tree = dict(tree)
             if tree['is_match_node']:
-                del tree['inner']['substitution_node']
+                del tree['inner']['subst_node']
             else:
                 del tree['inner']['match_node']
             tree_dicts.append(tree)
