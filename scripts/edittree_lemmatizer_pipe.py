@@ -14,7 +14,7 @@ from .edittrees import EditTrees
 
 default_model_config = """
 [model]
-@architectures = "edit_tree_model.v1"
+@architectures = "spacy.Tagger.v1"
 
 [model.tok2vec]
 @architectures = "spacy.HashEmbedCNN.v2"
