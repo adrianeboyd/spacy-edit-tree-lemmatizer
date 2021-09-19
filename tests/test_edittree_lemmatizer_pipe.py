@@ -103,7 +103,7 @@ def test_overfitting_IO():
     assert doc[2].lemma_ == "blue"
     assert doc[3].lemma_ == "egg"
 
-    # Test that the model still makes correct predictions after an IO roundtrip
+    # Check model after a {to,from}_disk roundtrip
     with util.make_tempdir() as tmp_dir:
         nlp.to_disk(tmp_dir)
         nlp2 = util.load_model_from_path(tmp_dir)
@@ -112,6 +112,17 @@ def test_overfitting_IO():
         assert doc2[1].lemma_ == "like"
         assert doc2[2].lemma_ == "blue"
         assert doc2[3].lemma_ == "egg"
+
+    # Check model after a {to,from}_bytes roundtrip
+    nlp_bytes = nlp.to_bytes()
+    nlp3 = English()
+    nlp3.add_pipe("edit_tree_lemmatizer")
+    nlp3.from_bytes(nlp_bytes)
+    doc3 = nlp3(test_text)
+    assert doc3[0].lemma_ == "she"
+    assert doc3[1].lemma_ == "like"
+    assert doc3[2].lemma_ == "blue"
+    assert doc3[3].lemma_ == "egg"
 
 
 def test_lemmatizer_requires_labels():
