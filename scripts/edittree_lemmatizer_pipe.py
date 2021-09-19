@@ -6,19 +6,39 @@ from spacy import Language, Vocab, Errors
 from spacy.pipeline import TrainablePipe
 from spacy.scorer import Scorer
 from spacy.tokens.doc import Doc
-from spacy.training import Example, validate_examples
+from spacy.training import Example, validate_examples, validate_get_examples
 import srsly
-from thinc.loss import SequenceCategoricalCrossentropy
-from thinc.model import Model
+from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 
 from .edittrees import EditTrees
+
+default_model_config = """
+[model]
+@architectures = "edit_tree_model.v1"
+
+[model.tok2vec]
+@architectures = "spacy.HashEmbedCNN.v2"
+pretrained_vectors = null
+width = 96
+depth = 4
+embed_size = 2000
+window_size = 1
+maxout_pieces = 3
+subword_features = true
+"""
+DEFAULT_EDIT_TREE_LEMMATIZER_MODEL = Config().from_str(default_model_config)["model"]
 
 
 @Language.factory(
     "edit_tree_lemmatizer",
     assigns=["token.lemma"],
     requires=[],
-    default_config={"backoff": "form", "overwrite": False, "top_k": 1},
+    default_config={
+        "model": DEFAULT_EDIT_TREE_LEMMATIZER_MODEL,
+        "backoff": "form",
+        "overwrite": False,
+        "top_k": 1,
+    },
     default_score_weights={"lemma_acc": 1.0},
 )
 def make_edit_tree_lemmatizer(
@@ -166,27 +186,35 @@ class EditTreeLemmatizer(TrainablePipe):
         get_examples: Callable[[], Iterable[Example]],
         *,
         nlp: Language = None,
-        labels: Optional[List[str]] = None,
     ):
-        doc_sample = []
-        label_sample = []
+        validate_get_examples(get_examples, "EditTreeLemmatizer.initialize")
 
         # Construct the edit trees for all the examples.
         for example in get_examples():
             for token in example.reference:
-                self._pair2label(token.text, token.lemma_)
+                if token.lemma != 0:
+                    self._pair2label(token.text, token.lemma_)
 
         # Sample for the model.
+        doc_sample = []
+        label_sample = []
         for example in islice(get_examples(), 10):
             doc_sample.append(example.x)
             gold_labels = []
             for token in example.reference:
+                if token.lemma == 0:
+                    continue
+
                 gold_label = self._pair2label(token.text, token.lemma_)
                 gold_labels.append(
                     [1.0 if label == gold_label else 0.0 for label in self.labels]
                 )
 
             label_sample.append(self.model.ops.asarray(gold_labels, dtype="float32"))
+
+        self._require_labels()
+        assert len(doc_sample) > 0, Errors.E923.format(name=self.name)
+        assert len(label_sample) > 0, Errors.E923.format(name=self.name)
 
         self.model.initialize(X=doc_sample, Y=label_sample)
 
