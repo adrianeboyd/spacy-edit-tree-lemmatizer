@@ -193,7 +193,7 @@ class EditTreeLemmatizer(TrainablePipe):
         for example in get_examples():
             for token in example.reference:
                 if token.lemma != 0:
-                    self._pair2label(token.text, token.lemma_)
+                    self._pair2label(token.text, token.lemma_, add_label=True)
 
         # Sample for the model.
         doc_sample = []
@@ -203,9 +203,10 @@ class EditTreeLemmatizer(TrainablePipe):
             gold_labels = []
             for token in example.reference:
                 if token.lemma == 0:
-                    continue
+                    gold_label = None
+                else:
+                    gold_label = self._pair2label(token.text, token.lemma_)
 
-                gold_label = self._pair2label(token.text, token.lemma_)
                 gold_labels.append(
                     [1.0 if label == gold_label else 0.0 for label in self.labels]
                 )
@@ -246,9 +247,12 @@ class EditTreeLemmatizer(TrainablePipe):
         spacy.util.from_disk(path, deserializers, exclude)
         return self
 
-    def _pair2label(self, form, lemma):
+    def _pair2label(self, form, lemma, add_label=False):
         tree_id = self.trees.add(form, lemma)
         if tree_id not in self.tree2label:
+            if not add_label:
+                return None
+
             self.tree2label[tree_id] = len(self.labels)
             self.labels.append(tree_id)
         return self.tree2label[tree_id]
