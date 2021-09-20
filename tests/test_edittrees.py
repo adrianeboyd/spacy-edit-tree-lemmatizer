@@ -77,6 +77,7 @@ def test_roundtrip_small_alphabet(form, lemma):
     tree = trees.add(form, lemma)
     assert trees.apply(tree, form) == lemma
 
+
 def test_unapplicable_trees():
     strings = StringStore()
     trees = EditTrees(strings)
@@ -87,3 +88,11 @@ def test_unapplicable_trees():
 
     # Suffix + prefix are too large.
     assert trees.apply(tree3, "de") == None
+
+
+def test_empty_strings():
+    strings = StringStore()
+    trees = EditTrees(strings)
+    no_change = trees.add("xyz", "xyz")
+    empty = trees.add("", "")
+    assert no_change == empty

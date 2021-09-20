@@ -84,5 +84,8 @@ cdef class EditTrees:
 
     cpdef uint32_t add(self, str form, str lemma)
     cpdef str apply(self, uint32_t tree_id, str form)
-    cdef _apply(self, uint32_t tree_id, str form_part, list lemma_pieces)
     cpdef unicode s_expr(self, uint32_t tree_id)
+
+    cdef uint32_t _add(self, str form, str lemma)
+    cdef _apply(self, uint32_t tree_id, str form_part, list lemma_pieces)
+    cdef uint32_t _tree_id(self, EditTreeC tree)
