@@ -9,6 +9,7 @@ from spacy.tokens.doc import Doc
 from spacy.training import Example, validate_examples, validate_get_examples
 import srsly
 from thinc.api import Config, Model, SequenceCategoricalCrossentropy
+from thinc.types import Floats2d, Ints2d
 
 from .edittrees import EditTrees
 
@@ -56,6 +57,10 @@ def make_edit_tree_lemmatizer(
 
 
 class EditTreeLemmatizer(TrainablePipe):
+    """
+    Lemmatizer that lemmatizes each word using a predicted edit tree.
+    """
+
     def __init__(
         self,
         vocab: Vocab,
@@ -66,6 +71,15 @@ class EditTreeLemmatizer(TrainablePipe):
         overwrite: bool = False,
         top_k: int = 1,
     ):
+        """
+        Construct and edit tree lemmatizer.
+
+        backoff (str): back-off to use when the predicted edit trees
+            are not applicable. Must be one of "form" (use the form
+            as the lemma) or None (leave the lemma unset).
+        overwrite (bool): overwrite existing lemma annotations.
+        top_k (int): try to apply at most the k most probable edit trees.
+        """
         self.vocab = vocab
         self.model = model
         self.name = name
@@ -78,7 +92,9 @@ class EditTreeLemmatizer(TrainablePipe):
 
         self.cfg = {"labels": []}
 
-    def get_loss(self, examples, scores):
+    def get_loss(
+        self, examples: Iterable[Example], scores
+    ) -> Tuple[float, List[Floats2d]]:
         validate_examples(examples, "EditTreeLemmatizer.get_loss")
         loss_func = SequenceCategoricalCrossentropy(normalize=False, missing_value=-1)
 
@@ -103,7 +119,7 @@ class EditTreeLemmatizer(TrainablePipe):
 
         return float(loss), d_scores
 
-    def predict(self, docs, Doc=None):
+    def predict(self, docs: Iterable[Doc]) -> List[Ints2d]:
         if not any(len(doc) for doc in docs):
             # Handle cases where there are no tokens in any docs.
             n_labels = len(self.labels)
@@ -270,6 +286,11 @@ class EditTreeLemmatizer(TrainablePipe):
         return self
 
     def _pair2label(self, form, lemma, add_label=False):
+        """
+        Look up the edit tree identifier for a form/label pair. If the edit
+        tree is unknown and "add_label" is set, the edit tree will be added to
+        the labels.
+        """
         tree_id = self.trees.add(form, lemma)
         if tree_id not in self.tree2label:
             if not add_label:
