@@ -171,9 +171,16 @@ cdef class EditTrees:
             else:
                 raise ValueError("Edit tree cannot be applied to form")
 
-    cpdef unicode s_expr(self, uint32_t tree_id):
-        """Return the tree as an S-expression. This is primarily useful
-        for debugging.
+    cpdef unicode tree_to_str(self, uint32_t tree_id):
+        """Return the tree as a string. The tree tree string is formatted
+        like an S-expression. This is primarily useful for debugging. Match
+        nodes have the following format:
+
+        (m prefix_len suffix_len prefix_tree suffix_tree)
+
+        Substitution nodes have the following format:
+
+        (s original substitute)
 
         tree_id (uint32_t): the identifier of the edit tree.
         RETURNS (str): the tree as an S-expression.
@@ -191,15 +198,15 @@ cdef class EditTrees:
 
         cdef MatchNodeC match_node = tree.inner.match_node
 
-        left = "()"
+        prefix_tree = "()"
         if match_node.prefix_tree != NULL_TREE_ID:
-            left = self.s_expr(match_node.prefix_tree)
+            prefix_tree = self.tree_to_str(match_node.prefix_tree)
 
-        right = "()"
+        suffix_tree = "()"
         if match_node.suffix_tree != NULL_TREE_ID:
-            right = self.s_expr(match_node.suffix_tree)
+            suffix_tree = self.tree_to_str(match_node.suffix_tree)
 
-        return f"(m {match_node.prefix_len} {match_node.suffix_len} {left} {right})"
+        return f"(m {match_node.prefix_len} {match_node.suffix_len} {prefix_tree} {suffix_tree})"
 
     def from_bytes(self, bytes_data: bytes, *) -> "EditTrees":
         def deserialize_trees(tree_dicts):

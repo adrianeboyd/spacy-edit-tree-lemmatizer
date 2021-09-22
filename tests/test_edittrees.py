@@ -10,10 +10,12 @@ def test_dutch():
     strings = StringStore()
     trees = EditTrees(strings)
     tree = trees.add("deelt", "delen")
-    assert trees.s_expr(tree) == "(m 0 3 () (m 0 2 (s '' 'l') (s 'lt' 'n')))"
+    assert trees.tree_to_str(tree) == "(m 0 3 () (m 0 2 (s '' 'l') (s 'lt' 'n')))"
 
     tree = trees.add("gedeeld", "delen")
-    assert trees.s_expr(tree) == "(m 2 3 (s 'ge' '') (m 0 2 (s '' 'l') (s 'ld' 'n')))"
+    assert (
+        trees.tree_to_str(tree) == "(m 2 3 (s 'ge' '') (m 0 2 (s '' 'l') (s 'ld' 'n')))"
+    )
 
 
 def test_from_to_bytes():
@@ -30,7 +32,7 @@ def test_from_to_bytes():
     # Verify that the nodes did not change.
     assert len(trees) == len(trees2)
     for i in range(len(trees)):
-        assert trees.s_expr(i) == trees2.s_expr(i)
+        assert trees.tree_to_str(i) == trees2.tree_to_str(i)
 
     # Reinserting the same trees should not add new nodes.
     trees2.add("deelt", "delen")
@@ -53,7 +55,7 @@ def test_from_to_disk():
     # Verify that the nodes did not change.
     assert len(trees) == len(trees2)
     for i in range(len(trees)):
-        assert trees.s_expr(i) == trees2.s_expr(i)
+        assert trees.tree_to_str(i) == trees2.tree_to_str(i)
 
     # Reinserting the same trees should not add new nodes.
     trees2.add("deelt", "delen")
