@@ -4,7 +4,7 @@ from spacy.lang.en import English
 from spacy.language import Language
 from spacy.training import Example
 
-from scripts.edittree_lemmatizer_pipe import EditTreeLemmatizer
+import scripts.edit_tree_lemmatizer_pipe
 
 
 TRAIN_DATA = [

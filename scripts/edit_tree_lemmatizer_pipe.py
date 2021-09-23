@@ -11,7 +11,7 @@ import srsly
 from thinc.api import Config, Model, SequenceCategoricalCrossentropy
 from thinc.types import Floats2d, Ints2d
 
-from .edittrees import EditTrees
+from .edit_trees import EditTrees
 
 default_model_config = """
 [model]

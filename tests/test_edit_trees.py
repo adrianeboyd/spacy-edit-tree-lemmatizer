@@ -3,7 +3,7 @@ import hypothesis.strategies as st
 from spacy.strings import StringStore
 from spacy.util import make_tempdir
 
-from scripts.edittrees import EditTrees
+from scripts.edit_trees import EditTrees
 
 
 def test_dutch():
@@ -48,7 +48,7 @@ def test_from_to_disk():
 
     trees2 = EditTrees(strings)
     with make_tempdir() as temp_dir:
-        trees_file = temp_dir / "edittrees.bin"
+        trees_file = temp_dir / "edit_trees.bin"
         trees.to_disk(trees_file)
         trees2 = trees2.from_disk(trees_file)
 

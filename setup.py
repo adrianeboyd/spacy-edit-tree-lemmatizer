@@ -12,7 +12,7 @@ COMPILER_DIRECTIVES = {
 }
 
 MOD_NAMES = [
-    "scripts.edittrees",
+    "scripts.edit_trees",
 ]
 
 ext_modules = []

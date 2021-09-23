@@ -1,6 +1,5 @@
 # cython: infer_types=True, binding=True
 from cython.operator cimport dereference as deref
-from edittrees cimport lcs_is_empty
 from pathlib import Path
 from libc.stdint cimport uint32_t
 from libc.stdint cimport UINT32_MAX
@@ -12,7 +11,7 @@ from spacy.strings import StringStore
 from spacy.typedefs cimport hash_t
 from typing import Union
 
-from edittrees cimport EditTrees, EditTreeC
+from edit_trees cimport EditTrees, EditTreeC, lcs_is_empty
 
 NULL_TREE_ID = UINT32_MAX
 
