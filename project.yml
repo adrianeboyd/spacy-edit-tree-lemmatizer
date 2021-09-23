@@ -19,6 +19,7 @@ workflows:
   all:
     - preprocess
     - train
+    - eval
 
 commands:
   - name: "preprocess"
@@ -46,4 +47,10 @@ commands:
       - "corpus/${vars.corpus}/train.spacy"
       - "corpus/${vars.corpus}/dev.spacy"
     outputs:
-      - "training/${vars.corpus}/model-best"
+      - "training/${vars.config}/model-best"
+  - name: "eval"
+    help: "Evaluate the lemmatization model evaluate on the test corpus."
+    script:
+      - "python -m spacy evaluate training/${vars.config}/model-best corpus/${vars.corpus}/test.spacy -c ./scripts/custom_functions.py"
+    deps:
+      - "training/${vars.config}/model-best"
