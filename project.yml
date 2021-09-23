@@ -6,7 +6,7 @@ vars:
   corpus: null
   gpu: -1
 
-directories: ["scripts", "configs", "assets", "data", "training"]
+directories: ["scripts", "configs", "assets", "corpus", "training"]
 
 assets:
     - dest: "assets/${vars.corpus}"
