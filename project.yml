@@ -1,14 +1,9 @@
 title: "Edit tree-based lemmatizer"
 
 vars:
-  lang: "nl"
-  tok2vec_config: "configs/edittree_tok2vec.cfg"
-  trf_config: "configs/edittree_trf.cfg"
-  corpus: "nl-dep-news"
-  train_name: "nl_lassysmall-ud-train"
-  dev_name: "nl_lassysmall-ud-dev"
-  test_name: "nl_lassysmall-ud-test"
-  vectors: "nl_core_news_lg"
+  lang: null
+  config: null
+  corpus: null
   gpu: -1
 
 directories: ["scripts", "configs", "assets", "data", "training"]
@@ -24,23 +19,19 @@ workflows:
   all:
     - preprocess
     - train
-    - train_trf
 
 commands:
   - name: "preprocess"
     help: "Convert data to spaCy format"
     script:
       - "mkdir -p corpus/${vars.corpus}"
-      - "python -m spacy convert -C assets/${vars.corpus}/train/${vars.train_name} corpus/${vars.corpus}/"
-      - "mv corpus/${vars.corpus}/${vars.train_name}.spacy corpus/${vars.corpus}/train.spacy"
-      - "python -m spacy convert -C assets/${vars.corpus}/dev/${vars.dev_name} corpus/${vars.corpus}/"
-      - "mv corpus/${vars.corpus}/${vars.dev_name}.spacy corpus/${vars.corpus}/dev.spacy"
-      - "python -m spacy convert -C assets/${vars.corpus}/test/${vars.test_name} corpus/${vars.corpus}/"
-      - "mv corpus/${vars.corpus}/${vars.test_name}.spacy corpus/${vars.corpus}/test.spacy"
+      - "python -m spacy convert -C assets/${vars.corpus}/train corpus/${vars.corpus}/"
+      - "python -m spacy convert -C assets/${vars.corpus}/dev corpus/${vars.corpus}/"
+      - "python -m spacy convert -C assets/${vars.corpus}/test corpus/${vars.corpus}/"
     deps:
-      - "assets/${vars.corpus}/train/${vars.train_name}"
-      - "assets/${vars.corpus}/dev/${vars.dev_name}"
-      - "assets/${vars.corpus}/test/${vars.test_name}"
+      - "assets/${vars.corpus}/train"
+      - "assets/${vars.corpus}/dev"
+      - "assets/${vars.corpus}/test"
     outputs:
       - "corpus/${vars.corpus}/train.spacy"
       - "corpus/${vars.corpus}/dev.spacy"
@@ -49,19 +40,9 @@ commands:
   - name: "train"
     help: "Train the lemmatization model evaluate on the dev corpus."
     script:
-      - "python -m spacy train ${vars.tok2vec_config} --output training/${vars.corpus} --gpu-id ${vars.gpu} --paths.train corpus/${vars.corpus}/train.spacy --paths.dev corpus/${vars.corpus}/dev.spacy --initialize.vectors=${vars.vectors} --nlp.lang=${vars.lang} -c ./scripts/custom_functions.py"
+      - "python -m spacy train configs/${vars.config}.cfg --output training/${vars.config} --gpu-id ${vars.gpu} --paths.train corpus/${vars.corpus}/train.spacy --paths.dev corpus/${vars.corpus}/dev.spacy --nlp.lang=${vars.lang} -c ./scripts/custom_functions.py"
     deps:
-      - ${vars.tok2vec_config}
-      - "corpus/${vars.corpus}/train.spacy"
-      - "corpus/${vars.corpus}/dev.spacy"
-    outputs:
-      - "training/${vars.corpus}/model-best"
-  - name: "train_trf"
-    help: "Finetune a transformer model for lemmatization evaluate on the dev corpus."
-    script:
-      - "python -m spacy train ${vars.trf_config} --output training/${vars.corpus} --gpu-id ${vars.gpu} --paths.train corpus/${vars.corpus}/train.spacy --paths.dev corpus/${vars.corpus}/dev.spacy --nlp.lang=${vars.lang} -c ./scripts/custom_functions.py"
-    deps:
-      - ${vars.tok2vec_config}
+      - "configs/${vars.config}.cfg"
       - "corpus/${vars.corpus}/train.spacy"
       - "corpus/${vars.corpus}/dev.spacy"
     outputs:
