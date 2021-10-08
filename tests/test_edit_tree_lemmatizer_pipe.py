@@ -65,7 +65,8 @@ def test_no_data():
 def test_incomplete_data():
     # Test that the lemmatizer works with incomplete information
     nlp = English()
-    nlp.add_pipe("edit_tree_lemmatizer")
+    lemmatizer = nlp.add_pipe("edit_tree_lemmatizer")
+    lemmatizer.min_tree_freq = 1
     train_examples = []
     for t in PARTIAL_DATA:
         train_examples.append(Example.from_dict(nlp.make_doc(t[0]), t[1]))
@@ -85,6 +86,7 @@ def test_incomplete_data():
 def test_overfitting_IO():
     nlp = English()
     lemmatizer = nlp.add_pipe("edit_tree_lemmatizer")
+    lemmatizer.min_tree_freq = 1
     train_examples = []
     for t in TRAIN_DATA:
         train_examples.append(Example.from_dict(nlp.make_doc(t[0]), t[1]))

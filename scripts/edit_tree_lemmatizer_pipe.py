@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import Callable, Iterable, Optional, List, Tuple, Dict, Any
 from itertools import islice
 import numpy as np
@@ -37,6 +38,7 @@ DEFAULT_EDIT_TREE_LEMMATIZER_MODEL = Config().from_str(default_model_config)["mo
     default_config={
         "model": DEFAULT_EDIT_TREE_LEMMATIZER_MODEL,
         "backoff": "form",
+        "min_tree_freq": 3,
         "overwrite": False,
         "top_k": 1,
     },
@@ -47,12 +49,19 @@ def make_edit_tree_lemmatizer(
     name: str,
     model: Model,
     backoff: str,
+    min_tree_freq: int,
     overwrite: bool = False,
     top_k: int = 1,
 ):
     """Construct an EditTreeLemmatizer component."""
     return EditTreeLemmatizer(
-        nlp.vocab, model, name, backoff=backoff, overwrite=overwrite, top_k=top_k
+        nlp.vocab,
+        model,
+        name,
+        backoff=backoff,
+        min_tree_freq=min_tree_freq,
+        overwrite=overwrite,
+        top_k=top_k,
     )
 
 
@@ -68,6 +77,7 @@ class EditTreeLemmatizer(TrainablePipe):
         name: str = "lemmatizer",
         *,
         backoff: str = "form",
+        min_tree_freq: int = 3,
         overwrite: bool = False,
         top_k: int = 1,
     ):
@@ -77,6 +87,8 @@ class EditTreeLemmatizer(TrainablePipe):
         backoff (str): back-off to use when the predicted edit trees
             are not applicable. Must be one of "form" (use the form
             as the lemma) or None (leave the lemma unset).
+        min_tree_freq (int): prune trees that are applied less than this
+            frequency in the training data.
         overwrite (bool): overwrite existing lemma annotations.
         top_k (int): try to apply at most the k most probable edit trees.
         """
@@ -84,6 +96,7 @@ class EditTreeLemmatizer(TrainablePipe):
         self.model = model
         self.name = name
         self.backoff = backoff
+        self.min_tree_freq = min_tree_freq
         self.overwrite = overwrite
         self.top_k = top_k
 
@@ -205,11 +218,25 @@ class EditTreeLemmatizer(TrainablePipe):
     ):
         validate_get_examples(get_examples, "EditTreeLemmatizer.initialize")
 
-        # Construct the edit trees for all the examples.
+        # Count corpus tree frequencies in ad-hoc storage to avoid cluttering
+        # the final pipe/string store.
+        vocab = Vocab()
+        trees = EditTrees(vocab.strings)
+        tree_freqs = Counter()
+        repr_pairs = dict()
         for example in get_examples():
             for token in example.reference:
                 if token.lemma != 0:
-                    self._pair2label(token.text, token.lemma_, add_label=True)
+                    tree_id = trees.add(token.text, token.lemma_)
+                    tree_freqs[tree_id] += 1
+                    repr_pairs[tree_id] = (token.text, token.lemma_)
+
+        # Construct trees that make the frequency cut-off using representative
+        # form - token pairs.
+        for tree_id, freq in tree_freqs.items():
+            if freq >= self.min_tree_freq:
+                form, lemma = repr_pairs[tree_id]
+                self._pair2label(form, lemma, add_label=True)
 
         # Sample for the model.
         doc_sample = []
