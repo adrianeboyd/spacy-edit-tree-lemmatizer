@@ -1,4 +1,5 @@
 from collections import Counter
+from copy import deepcopy
 from typing import Callable, Iterable, Optional, List, Tuple, Dict, Any
 from itertools import islice
 import numpy as np
@@ -135,7 +136,7 @@ class EditTreeLemmatizer(TrainablePipe):
     def predict(self, docs: Iterable[Doc]) -> List[Ints2d]:
         if not any(len(doc) for doc in docs):
             # Handle cases where there are no tokens in any docs.
-            n_labels = len(self.labels)
+            n_labels = len(self.cfg["labels"])
             guesses = [self.model.ops.alloc((0, n_labels)) for doc in docs]
             assert len(guesses) == len(docs)
             return guesses
@@ -163,7 +164,7 @@ class EditTreeLemmatizer(TrainablePipe):
             for token, candidates in zip(doc, doc_guesses):
                 tree_id = -1
                 for candidate in candidates:
-                    candidate_tree_id = self.labels[candidate]
+                    candidate_tree_id = self.cfg["labels"][candidate]
 
                     if self.trees.apply(candidate_tree_id, token.text) is not None:
                         tree_id = candidate_tree_id
@@ -197,7 +198,19 @@ class EditTreeLemmatizer(TrainablePipe):
     @property
     def labels(self) -> Tuple[str]:
         """Returns the labels currently added to the component."""
-        return self.cfg["labels"]
+        return tuple(self.cfg["labels"])
+
+    @property
+    def label_data(self):
+        trees = []
+        for tree_id in range(len(self.trees)):
+            tree = self.trees[tree_id]
+            if not tree["is_match_node"]:
+                subst_node = tree["inner"]["subst_node"]
+                subst_node["orig"] = self.vocab.strings[subst_node["orig"]]
+                subst_node["subst"] = self.vocab.strings[subst_node["subst"]]
+            trees.append(tree)
+        return dict(trees=trees, labels=tuple(self.cfg["labels"]))
 
     def score(self, examples: Iterable[Example], **kwargs) -> Dict[str, Any]:
         """Score a batch of examples.
@@ -215,28 +228,14 @@ class EditTreeLemmatizer(TrainablePipe):
         get_examples: Callable[[], Iterable[Example]],
         *,
         nlp: Language = None,
+        labels=None,
     ):
         validate_get_examples(get_examples, "EditTreeLemmatizer.initialize")
 
-        # Count corpus tree frequencies in ad-hoc storage to avoid cluttering
-        # the final pipe/string store.
-        vocab = Vocab()
-        trees = EditTrees(vocab.strings)
-        tree_freqs = Counter()
-        repr_pairs = dict()
-        for example in get_examples():
-            for token in example.reference:
-                if token.lemma != 0:
-                    tree_id = trees.add(token.text, token.lemma_)
-                    tree_freqs[tree_id] += 1
-                    repr_pairs[tree_id] = (token.text, token.lemma_)
-
-        # Construct trees that make the frequency cut-off using representative
-        # form - token pairs.
-        for tree_id, freq in tree_freqs.items():
-            if freq >= self.min_tree_freq:
-                form, lemma = repr_pairs[tree_id]
-                self._pair2label(form, lemma, add_label=True)
+        if labels is None:
+            self._labels_from_data(get_examples)
+        else:
+            self._add_labels(labels)
 
         # Sample for the model.
         doc_sample = []
@@ -251,7 +250,7 @@ class EditTreeLemmatizer(TrainablePipe):
                     gold_label = self._pair2label(token.text, token.lemma_)
 
                 gold_labels.append(
-                    [1.0 if label == gold_label else 0.0 for label in self.labels]
+                    [1.0 if label == gold_label else 0.0 for label in self.cfg["labels"]]
                 )
 
             label_sample.append(self.model.ops.asarray(gold_labels, dtype="float32"))
@@ -312,6 +311,46 @@ class EditTreeLemmatizer(TrainablePipe):
         spacy.util.from_disk(path, deserializers, exclude)
         return self
 
+    def _add_labels(self, labels):
+        assert labels is not None
+        # Replace with proper exceptions after spaCy integration
+        assert "labels" in labels
+        assert "trees" in labels
+
+        self.cfg["labels"] = list(labels["labels"])
+
+        # Do not modify the caller's data structures.
+        trees = deepcopy(labels["trees"])
+
+        for tree in trees:
+            if not tree["is_match_node"]:
+                subst_node = tree["inner"]["subst_node"]
+                subst_node["orig"] = self.vocab.strings[subst_node["orig"]]
+                subst_node["subst"] = self.vocab.strings[subst_node["subst"]]
+
+        self.trees.from_json(trees)
+
+    def _labels_from_data(self, get_examples: Callable[[], Iterable[Example]]):
+        # Count corpus tree frequencies in ad-hoc storage to avoid cluttering
+        # the final pipe/string store.
+        vocab = Vocab()
+        trees = EditTrees(vocab.strings)
+        tree_freqs = Counter()
+        repr_pairs = dict()
+        for example in get_examples():
+            for token in example.reference:
+                if token.lemma != 0:
+                    tree_id = trees.add(token.text, token.lemma_)
+                    tree_freqs[tree_id] += 1
+                    repr_pairs[tree_id] = (token.text, token.lemma_)
+
+        # Construct trees that make the frequency cut-off using representative
+        # form - token pairs.
+        for tree_id, freq in tree_freqs.items():
+            if freq >= self.min_tree_freq:
+                form, lemma = repr_pairs[tree_id]
+                self._pair2label(form, lemma, add_label=True)
+
     def _pair2label(self, form, lemma, add_label=False):
         """
         Look up the edit tree identifier for a form/label pair. If the edit
@@ -323,6 +362,6 @@ class EditTreeLemmatizer(TrainablePipe):
             if not add_label:
                 return None
 
-            self.tree2label[tree_id] = len(self.labels)
-            self.labels.append(tree_id)
+            self.tree2label[tree_id] = len(self.cfg["labels"])
+            self.cfg["labels"].append(tree_id)
         return self.tree2label[tree_id]

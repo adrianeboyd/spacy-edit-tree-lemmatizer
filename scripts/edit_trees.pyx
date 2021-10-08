@@ -207,6 +207,10 @@ cdef class EditTrees:
 
         return f"(m {match_node.prefix_len} {match_node.suffix_len} {prefix_tree} {suffix_tree})"
 
+    def from_json(self, trees: list, *) -> "EditTrees":
+        self.trees = trees
+        self._rebuild_tree_map()
+
     def from_bytes(self, bytes_data: bytes, *) -> "EditTrees":
         def deserialize_trees(tree_dicts):
             cdef EditTreeC c_tree
@@ -225,11 +229,7 @@ cdef class EditTrees:
     def to_bytes(self, **kwargs) -> bytes:
         tree_dicts = []
         for tree in self.trees:
-            tree = dict(tree)
-            if tree['is_match_node']:
-                del tree['inner']['subst_node']
-            else:
-                del tree['inner']['match_node']
+            tree = _tree2dict(tree)
             tree_dicts.append(tree)
 
         serializers = {}
@@ -251,6 +251,9 @@ cdef class EditTrees:
 
         return self
 
+    def __getitem__(self, idx):
+        return _tree2dict(self.trees[idx])
+
     def __len__(self):
         return self.trees.size()
 
@@ -266,3 +269,11 @@ cdef class EditTrees:
             c_tree = self.trees[tree_id]
             tree_hash = edittree_hash(c_tree)
             self.map.insert(pair[hash_t, uint32_t](tree_hash, tree_id))
+
+def _tree2dict(tree):
+    tree = dict(tree)
+    if tree['is_match_node']:
+        del tree['inner']['subst_node']
+    else:
+        del tree['inner']['match_node']
+    return(tree)

@@ -132,3 +132,24 @@ def test_lemmatizer_requires_labels():
     nlp.add_pipe("edit_tree_lemmatizer")
     with pytest.raises(ValueError):
         nlp.initialize()
+
+
+def test_lemmatizer_label_data():
+    nlp = English()
+    lemmatizer = nlp.add_pipe("edit_tree_lemmatizer")
+    lemmatizer.min_tree_freq = 1
+    train_examples = []
+    for t in TRAIN_DATA:
+        train_examples.append(Example.from_dict(nlp.make_doc(t[0]), t[1]))
+
+    nlp.initialize(get_examples=lambda: train_examples)
+
+    nlp2 = English()
+    lemmatizer2 = nlp2.add_pipe("edit_tree_lemmatizer")
+    lemmatizer2.initialize(
+        get_examples=lambda: train_examples, labels=lemmatizer.label_data
+    )
+
+    # Verify that the labels and trees are the same.
+    assert lemmatizer.labels == lemmatizer2.labels
+    assert lemmatizer.trees.to_bytes() == lemmatizer2.trees.to_bytes()
