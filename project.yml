@@ -6,7 +6,7 @@ vars:
   corpus: null
   gpu: -1
 
-directories: ["edit_tree_lemmatizer", "configs", "assets", "corpus", "training"]
+directories: ["spacy_edit_tree_lemmatizer", "configs", "assets", "corpus", "training"]
 
 assets:
     - dest: "assets/${vars.corpus}"
@@ -41,7 +41,7 @@ commands:
   - name: "train"
     help: "Train the lemmatization model evaluate on the dev corpus."
     script:
-      - "python -m spacy train configs/${vars.config}.cfg --output training/${vars.config} --gpu-id ${vars.gpu} --paths.train corpus/${vars.corpus}/train.spacy --paths.dev corpus/${vars.corpus}/dev.spacy --nlp.lang=${vars.lang} -c ./edit_tree_lemmatizer/custom_functions.py"
+      - "python -m spacy train configs/${vars.config}.cfg --output training/${vars.config} --gpu-id ${vars.gpu} --paths.train corpus/${vars.corpus}/train.spacy --paths.dev corpus/${vars.corpus}/dev.spacy --nlp.lang=${vars.lang} -c ./spacy_edit_tree_lemmatizer/custom_functions.py"
     deps:
       - "configs/${vars.config}.cfg"
       - "corpus/${vars.corpus}/train.spacy"
@@ -51,6 +51,6 @@ commands:
   - name: "eval"
     help: "Evaluate the lemmatization model evaluate on the test corpus."
     script:
-      - "python -m spacy evaluate training/${vars.config}/model-best corpus/${vars.corpus}/test.spacy -c ./edit_tree_lemmatizer/custom_functions.py"
+      - "python -m spacy evaluate training/${vars.config}/model-best corpus/${vars.corpus}/test.spacy -c ./spacy_edit_tree_lemmatizer/custom_functions.py"
     deps:
       - "training/${vars.config}/model-best"
