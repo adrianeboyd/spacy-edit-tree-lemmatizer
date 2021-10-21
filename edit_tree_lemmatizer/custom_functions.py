@@ -1,0 +1,1 @@
+from edit_tree_lemmatizer.edit_tree_lemmatizer_pipe import make_edit_tree_lemmatizer

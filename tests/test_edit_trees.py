@@ -3,7 +3,7 @@ import hypothesis.strategies as st
 from spacy.strings import StringStore
 from spacy.util import make_tempdir
 
-from scripts.edit_trees import EditTrees
+from edit_tree_lemmatizer.edit_trees import EditTrees
 
 
 def test_dutch():

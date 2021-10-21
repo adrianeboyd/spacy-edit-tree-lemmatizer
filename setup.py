@@ -12,7 +12,7 @@ COMPILER_DIRECTIVES = {
 }
 
 MOD_NAMES = [
-    "scripts.edit_trees",
+    "edit_tree_lemmatizer.edit_trees",
 ]
 
 ext_modules = []
