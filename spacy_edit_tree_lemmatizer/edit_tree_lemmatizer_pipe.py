@@ -38,7 +38,7 @@ DEFAULT_EDIT_TREE_LEMMATIZER_MODEL = Config().from_str(default_model_config)["mo
     requires=[],
     default_config={
         "model": DEFAULT_EDIT_TREE_LEMMATIZER_MODEL,
-        "backoff": "form",
+        "backoff": "orth",
         "min_tree_freq": 3,
         "overwrite": False,
         "top_k": 1,
@@ -49,10 +49,10 @@ def make_edit_tree_lemmatizer(
     nlp: Language,
     name: str,
     model: Model,
-    backoff: str,
+    backoff: Optional[str],
     min_tree_freq: int,
-    overwrite: bool = False,
-    top_k: int = 1,
+    overwrite: bool,
+    top_k: int,
 ):
     """Construct an EditTreeLemmatizer component."""
     return EditTreeLemmatizer(
@@ -77,7 +77,7 @@ class EditTreeLemmatizer(TrainablePipe):
         model: Model,
         name: str = "lemmatizer",
         *,
-        backoff: str = "form",
+        backoff: Optional[str] = "orth",
         min_tree_freq: int = 3,
         overwrite: bool = False,
         top_k: int = 1,
@@ -85,9 +85,9 @@ class EditTreeLemmatizer(TrainablePipe):
         """
         Construct and edit tree lemmatizer.
 
-        backoff (str): back-off to use when the predicted edit trees
-            are not applicable. Must be one of "form" (use the form
-            as the lemma) or None (leave the lemma unset).
+        backoff (Optional[str]): backoff to use when the predicted edit trees
+            are not applicable. Must be an attribute of Token or None (leave the
+            lemma unset).
         min_tree_freq (int): prune trees that are applied less than this
             frequency in the training data.
         overwrite (bool): overwrite existing lemma annotations.
@@ -189,8 +189,9 @@ class EditTreeLemmatizer(TrainablePipe):
                     # the special identifier -1 is used. Otherwise the tree
                     # is guaranteed to be applicable.
                     if tree_id == -1:
-                        if self.backoff == "form":
-                            doc[j].lemma_ = doc[j].text
+                        # TODO: generalize with a getter setting
+                        if self.backoff is not None:
+                            doc[j].lemma = getattr(doc[j], self.backoff)
                     else:
                         lemma = self.trees.apply(tree_id, doc[j].text)
                         doc[j].lemma_ = lemma
