@@ -1,0 +1,5 @@
+include LICENSE
+include README.md
+include pyproject.toml
+recursive-include spacy_edit_tree_lemmatizer *.pyx *.pxd
+recursive-exclude spacy_edit_tree_lemmatizer *.cpp

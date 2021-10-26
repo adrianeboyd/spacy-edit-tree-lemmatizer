@@ -6,7 +6,7 @@ import numpy as np
 import spacy
 from spacy import Language, Vocab, Errors
 from spacy.pipeline import TrainablePipe
-from spacy.scorer import Scorer
+from spacy.pipeline.lemmatizer import lemmatizer_score
 from spacy.tokens.doc import Doc
 from spacy.training import Example, validate_examples, validate_get_examples
 import srsly
@@ -42,6 +42,7 @@ DEFAULT_EDIT_TREE_LEMMATIZER_MODEL = Config().from_str(default_model_config)["mo
         "min_tree_freq": 3,
         "overwrite": False,
         "top_k": 1,
+        "scorer": {"@scorers": "spacy.lemmatizer_scorer.v1"},
     },
     default_score_weights={"lemma_acc": 1.0},
 )
@@ -53,6 +54,7 @@ def make_edit_tree_lemmatizer(
     min_tree_freq: int,
     overwrite: bool,
     top_k: int,
+    scorer: Optional[Callable],
 ):
     """Construct an EditTreeLemmatizer component."""
     return EditTreeLemmatizer(
@@ -63,6 +65,7 @@ def make_edit_tree_lemmatizer(
         min_tree_freq=min_tree_freq,
         overwrite=overwrite,
         top_k=top_k,
+        scorer=scorer,
     )
 
 
@@ -81,6 +84,7 @@ class EditTreeLemmatizer(TrainablePipe):
         min_tree_freq: int = 3,
         overwrite: bool = False,
         top_k: int = 1,
+        scorer: Optional[Callable] = lemmatizer_score,
     ):
         """
         Construct and edit tree lemmatizer.
@@ -105,6 +109,7 @@ class EditTreeLemmatizer(TrainablePipe):
         self.tree2label = dict()
 
         self.cfg = {"labels": []}
+        self.scorer = scorer
 
     def get_loss(
         self, examples: Iterable[Example], scores
@@ -212,17 +217,6 @@ class EditTreeLemmatizer(TrainablePipe):
                 subst_node["subst"] = self.vocab.strings[subst_node["subst"]]
             trees.append(tree)
         return dict(trees=trees, labels=tuple(self.cfg["labels"]))
-
-    def score(self, examples: Iterable[Example], **kwargs) -> Dict[str, Any]:
-        """Score a batch of examples.
-
-        examples (Iterable[Example]): The examples to score.
-        RETURNS (Dict[str, Any]): The scores.
-
-        DOCS: https://spacy.io/api/lemmatizer#score
-        """
-        validate_examples(examples, "EditTreeLemmatizer.score")
-        return Scorer.score_token_attr(examples, "lemma", **kwargs)
 
     def initialize(
         self,

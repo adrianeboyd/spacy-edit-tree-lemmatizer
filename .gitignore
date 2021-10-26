@@ -1,7 +1,9 @@
 # Project directories
-assets/
-corpus/
-training/
+project/assets/
+project/configs/
+project/corpus/
+project/training/
+project/project.lock
 
 # Editor files
 .*
@@ -13,6 +15,7 @@ __pycache__/
 
 # C extensions
 *.so
+*.cpp
 
 # Distribution / packaging
 .Python

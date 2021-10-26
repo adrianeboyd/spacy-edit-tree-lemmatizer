@@ -4,8 +4,6 @@ from spacy.lang.en import English
 from spacy.language import Language
 from spacy.training import Example
 
-import spacy_edit_tree_lemmatizer.edit_tree_lemmatizer_pipe
-
 
 TRAIN_DATA = [
     ("She likes green eggs", {"lemmas": ["she", "like", "green", "egg"]}),
