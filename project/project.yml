@@ -6,7 +6,7 @@ vars:
   train_name: "de_gsd-ud-train"
   dev_name: "de_gsd-ud-dev"
   test_name: "de_gsd-ud-test"
-  gpu: 0
+  gpu: -1
 
 directories: ["configs", "assets", "corpus", "training"]
 
