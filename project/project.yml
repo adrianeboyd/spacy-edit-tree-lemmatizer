@@ -1,11 +1,11 @@
 title: "Edit tree lemmatizer"
 
 vars:
-  lang: "de"
-  treebank: "UD_German-GSD"
-  train_name: "de_gsd-ud-train"
-  dev_name: "de_gsd-ud-dev"
-  test_name: "de_gsd-ud-test"
+  lang: "nl"
+  treebank: "UD_Dutch-Alpino"
+  train_name: "nl_alpino-ud-train"
+  dev_name: "nl_alpino-ud-dev"
+  test_name: "nl_alpino-ud-test"
   gpu: -1
 
 directories: ["configs", "assets", "corpus", "training"]
@@ -45,7 +45,7 @@ commands:
   - name: "create-config"
     help: "Create a config"
     script:
-      - "python -m spacy init config -l ${vars.lang} -p edit_tree_lemmatizer configs/${vars.treebank}/config.cfg"
+      - "python -m spacy init config -l ${vars.lang} -p edit_tree_lemmatizer configs/${vars.treebank}/config.cfg -F"
 
   - name: "train"
     help: "Train the lemmatizer"
